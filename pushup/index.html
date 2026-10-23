@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=Barlow:wght@500;700;800&display=swap">
 <style>
-/* Layout: start screen with setup steps -> full-screen camera with skeleton overlay, giant rep count, depth bar */
+/* Layout: start screen (exercise + camera pick) -> full-screen camera with smoothed skeleton, giant rep count, depth bar */
 :root{
   --bg:#0f1012; --panel:#1b1c20; --line:#2c2e34; --fg:#f5f3ee; --muted:#9a9ca4;
   --accent:#ff7a1a; --good:#3be08a; --bad:#ff3b4d;
@@ -24,28 +24,23 @@ body{background:var(--bg);color:var(--fg);font-family:var(--body);font-size:16px
 button{font-family:var(--body);cursor:pointer}
 button:focus-visible{outline:3px solid var(--fg);outline-offset:3px}
 
-/* start */
 #start{height:100%;overflow:auto;padding:max(24px,env(safe-area-inset-top)) max(18px,env(safe-area-inset-right)) max(24px,env(safe-area-inset-bottom)) max(18px,env(safe-area-inset-left))}
-.wrap{max-width:440px;margin:0 auto;display:flex;flex-direction:column;gap:20px}
+.wrap{max-width:440px;margin:0 auto;display:flex;flex-direction:column;gap:18px}
 h1{font-family:var(--display);font-weight:400;font-size:clamp(56px,18vw,84px);line-height:.9;margin:0;letter-spacing:1px}
 h1 span{color:var(--accent)}
-.tag{margin:0;color:var(--muted);font-weight:700}
-ol{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:10px;counter-reset:s}
-ol li{counter-increment:s;display:grid;grid-template-columns:34px 1fr;gap:12px;align-items:start;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px}
-ol li::before{content:counter(s);font-family:var(--display);font-size:24px;color:var(--accent);line-height:1}
-ol b{display:block}
-ol small{color:var(--muted);font-size:14px}
-.rules{display:flex;gap:8px}
-.rule{flex:1;border:1px solid var(--line);border-radius:12px;padding:10px;font-size:13px;color:var(--muted)}
-.rule b{display:block;font-size:15px;color:var(--fg)}
+.tag{margin:6px 0 0;color:var(--muted);font-weight:700}
+.lab{font-size:12px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);font-weight:800;margin:0 0 8px}
+.seg{display:flex;gap:8px}
+.seg button{flex:1;background:transparent;color:var(--muted);border:1px solid var(--line);border-radius:14px;padding:12px 8px;font-weight:800;font-size:15px}
+.seg button[aria-pressed="true"]{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+.seg.big button{font-family:var(--display);font-weight:400;font-size:24px;letter-spacing:.5px;padding:16px 8px}
+.how{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:8px;font-size:15px}
+.how b{color:var(--accent)}
+.how p{margin:0;color:#d6d4cf}
 .go{background:var(--accent);color:#1a0d00;border:0;border-radius:16px;padding:18px;font-family:var(--display);font-size:28px;letter-spacing:1px}
 .go:disabled{opacity:.6}
 #status{min-height:1.2em;margin:0;color:var(--muted);text-align:center;font-weight:700}
-.camsel{display:flex;gap:8px}
-.camsel button{flex:1;background:transparent;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:10px;font-weight:800}
-.camsel button[aria-pressed="true"]{background:var(--fg);color:var(--bg);border-color:var(--fg)}
 
-/* camera */
 #cam{position:fixed;inset:0;background:#000}
 #v,#c{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
 #v.mirror{transform:scaleX(-1)}
@@ -57,14 +52,15 @@ ol small{color:var(--muted);font-size:14px}
 .side{text-align:right;display:flex;flex-direction:column;gap:8px;align-items:flex-end}
 .stat{font-family:var(--display);font-size:34px;line-height:1;font-variant-numeric:tabular-nums}
 .stat.bad{color:var(--bad)}
-.msg{position:absolute;left:50%;top:44%;transform:translate(-50%,-50%);font-family:var(--display);font-size:clamp(30px,9vw,46px);text-align:center;
+.pill{font-size:12px;font-weight:800;letter-spacing:1px;text-transform:uppercase;background:#ffffff26;border-radius:999px;padding:5px 10px}
+.msg{position:absolute;left:50%;top:46%;transform:translate(-50%,-50%);font-family:var(--display);font-size:clamp(30px,9vw,46px);text-align:center;
   text-shadow:0 2px 18px #000;padding:0 20px;width:100%;pointer-events:none;letter-spacing:.5px}
 .msg.good{color:var(--good)} .msg.bad{color:var(--bad)} .msg.info{color:#fff;font-size:clamp(20px,6vw,28px)}
 .depth{position:absolute;right:max(14px,env(safe-area-inset-right));top:38%;height:30%;width:14px;border-radius:8px;background:#ffffff26;overflow:hidden}
-.depth i{position:absolute;left:0;right:0;bottom:0;background:var(--accent);border-radius:8px;transition:height .08s}
+.depth i{position:absolute;left:0;right:0;bottom:0;background:var(--accent);border-radius:8px}
 .depth::after{content:"";position:absolute;left:-4px;right:-4px;top:12%;height:2px;background:#fff}
 .bottom{position:absolute;bottom:0;left:0;right:0;padding:14px max(16px,env(safe-area-inset-right)) max(14px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left));
-  background:linear-gradient(#0000,#000c);display:flex;gap:8px;align-items:center}
+  background:linear-gradient(#0000,#000c);display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .chip{background:#ffffff1f;border:0;color:#fff;border-radius:999px;padding:10px 14px;font-weight:800;font-size:14px;backdrop-filter:blur(6px)}
 .read{margin-right:auto;font-size:13px;color:#fffc;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.35}
 </style>
@@ -75,21 +71,30 @@ ol small{color:var(--muted);font-size:14px}
   <div class="wrap">
     <div>
       <h1>PUSHUP <span>AI</span></h1>
-      <p class="tag">Tracks your body. Counts only real reps.</p>
+      <p class="tag">Tracks your whole body. Counts only real reps.</p>
     </div>
-    <ol>
-      <li><div><b>Phone on the floor, sideways</b><small>Lean it on something, about 2 meters to your side.</small></div></li>
-      <li><div><b>Whole body in the picture</b><small>Head to feet, seen from the side.</small></div></li>
-      <li><div><b>Go</b><small>It says every rep out loud, so you don't need to look.</small></div></li>
-    </ol>
-    <div class="rules">
-      <div class="rule"><b>Go low</b>Elbows bent to 90° or less</div>
-      <div class="rule"><b>Stay straight</b>No sagging hips or butt in the air</div>
-      <div class="rule"><b>Lock out</b>Arms straight at the top</div>
+    <div>
+      <p class="lab">Exercise</p>
+      <div class="seg big" role="group" aria-label="Exercise">
+        <button id="exPush" aria-pressed="true">PUSH-UPS</button>
+        <button id="exSquat" aria-pressed="false">SQUATS</button>
+      </div>
     </div>
-    <div class="camsel" role="group" aria-label="Camera">
-      <button id="selFront" aria-pressed="true">Front camera</button>
-      <button id="selBack" aria-pressed="false">Back camera</button>
+    <div class="how" id="howPush">
+      <p><b>Front:</b> phone on the floor in front of your face, both arms in the picture.</p>
+      <p><b>Side:</b> phone on the floor at your side, whole body in the picture.</p>
+      <p>It finds out which one you're doing by itself. Go down until your chest is low, arms straight at the top.</p>
+    </div>
+    <div class="how" id="howSquat" hidden>
+      <p><b>Front or side:</b> lean the phone at waist height, 2–3 meters away, whole body in the picture.</p>
+      <p>Go down until your thighs are about level with the floor, then stand all the way up.</p>
+    </div>
+    <div>
+      <p class="lab">Camera</p>
+      <div class="seg" role="group" aria-label="Camera">
+        <button id="selFront" aria-pressed="true">Front camera</button>
+        <button id="selBack" aria-pressed="false">Back camera</button>
+      </div>
     </div>
     <button class="go" id="goBtn">START</button>
     <p id="status"></p>
@@ -101,19 +106,21 @@ ol small{color:var(--muted);font-size:14px}
   <canvas id="c"></canvas>
   <div class="top">
     <div>
-      <div class="lbl">Good reps</div>
+      <div class="lbl" id="repLbl">Push-ups</div>
       <div class="count" id="count">0</div>
     </div>
     <div class="side">
       <div><div class="lbl">No-reps</div><div class="stat bad" id="bad">0</div></div>
       <div><div class="lbl">Time</div><div class="stat" id="time">0:00</div></div>
+      <div class="pill" id="viewPill">Finding you…</div>
     </div>
   </div>
-  <div class="msg info" id="msg">Get in push-up position</div>
+  <div class="msg info" id="msg">Get in position</div>
   <div class="depth" aria-hidden="true"><i id="depthBar" style="height:0%"></i></div>
   <div class="bottom">
-    <div class="read" id="read">Elbow —°<br>Body —°</div>
-    <button class="chip" id="soundBtn">🔊 On</button>
+    <div class="read" id="read">—<br><span id="fps">— fps</span></div>
+    <button class="chip" id="exBtn">Squats</button>
+    <button class="chip" id="soundBtn">🔊</button>
     <button class="chip" id="flipBtn">Flip</button>
     <button class="chip" id="resetBtn">Reset</button>
   </div>
@@ -122,39 +129,56 @@ ol small{color:var(--muted);font-size:14px}
 <script type="module">
 const $=id=>document.getElementById(id);
 const V=$('v'), C=$('c'), g=C.getContext('2d');
-let facing='user', stream=null, landmarker=null, running=false, lastT=-1, sound=true;
-let good=0, bad=0, state='up', repMin=180, repBodyMin=180, elbowS=null, t0=0, msgTimer=null;
+let facing='user', ex='push', stream=null, landmarker=null, running=false, lastT=-1, sound=true;
+let good=0, bad=0, t0=0, msgTimer=null;
+let S=null;            // smoothed landmarks (logic)
+let D=null;            // display landmarks (drawn every screen frame)
+let lastSeen=0, view='?', frontScore=0.5, color='#ff7a1a', label='';
+let fpsN=0, fpsT=performance.now();
 
+// rep state
+let st={phase:'up', min1:9, min2:999, bodyMin:180, top:0, thigh:0};
+
+function setEx(e){
+  ex=e; $('exPush').setAttribute('aria-pressed',e==='push'); $('exSquat').setAttribute('aria-pressed',e==='squat');
+  $('howPush').hidden=e!=='push'; $('howSquat').hidden=e!=='squat';
+  $('repLbl').textContent=e==='push'?'Push-ups':'Squats'; $('exBtn').textContent=e==='push'?'Squats':'Push-ups';
+  reset();
+}
+$('exPush').onclick=()=>setEx('push'); $('exSquat').onclick=()=>setEx('squat');
+$('exBtn').onclick=()=>{ setEx(ex==='push'?'squat':'push'); flash(ex==='push'?'Push-ups':'Squats','info',900); };
 $('selFront').onclick=()=>{facing='user';$('selFront').setAttribute('aria-pressed',true);$('selBack').setAttribute('aria-pressed',false)};
 $('selBack').onclick=()=>{facing='environment';$('selBack').setAttribute('aria-pressed',true);$('selFront').setAttribute('aria-pressed',false)};
 
 function say(t){ if(!sound||!window.speechSynthesis) return; speechSynthesis.cancel(); const u=new SpeechSynthesisUtterance(t); u.rate=1.15; speechSynthesis.speak(u); }
 function flash(text,cls,ms=1100){ const m=$('msg'); m.textContent=text; m.className='msg '+cls; clearTimeout(msgTimer); if(ms) msgTimer=setTimeout(()=>{m.textContent='';},ms); }
-function info(text){ if($('msg').classList.contains('info')||!$('msg').textContent){ const m=$('msg'); m.className='msg info'; m.textContent=text; } }
+function info(text){ const m=$('msg'); if(m.classList.contains('info')||!m.textContent){ m.className='msg info'; m.textContent=text; } }
+function clearInfo(){ const m=$('msg'); if(m.classList.contains('info')) m.textContent=''; }
+function reset(){ good=0;bad=0;t0=Date.now();st={phase:'up',min1:999,min2:999,bodyMin:180,top:0,thigh:0};$('count').textContent='0';$('bad').textContent='0'; }
 
 async function loadModel(){
   $('status').textContent='Loading the AI… (first time takes a few seconds)';
   const {FilesetResolver,PoseLandmarker}=await import('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs');
   const files=await FilesetResolver.forVisionTasks('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm');
-  const opts=d=>({baseOptions:{modelAssetPath:'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_full/float16/1/pose_landmarker_full.task',delegate:d},runningMode:'VIDEO',numPoses:1});
+  const opts=d=>({baseOptions:{modelAssetPath:'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_full/float16/1/pose_landmarker_full.task',delegate:d},
+    runningMode:'VIDEO',numPoses:1,minPoseDetectionConfidence:0.5,minPosePresenceConfidence:0.5,minTrackingConfidence:0.5});
   try{ landmarker=await PoseLandmarker.createFromOptions(files,opts('GPU')); }
   catch(e){ landmarker=await PoseLandmarker.createFromOptions(files,opts('CPU')); }
 }
 async function startCam(){
   if(stream) stream.getTracks().forEach(t=>t.stop());
-  stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:facing,width:{ideal:1280},height:{ideal:720}},audio:false});
+  const base={facingMode:facing,width:{ideal:1280},height:{ideal:720}};
+  try{ stream=await navigator.mediaDevices.getUserMedia({video:{...base,frameRate:{ideal:120,min:30}},audio:false}); }
+  catch(e){ stream=await navigator.mediaDevices.getUserMedia({video:base,audio:false}); }
   V.srcObject=stream; await V.play();
   V.classList.toggle('mirror',facing==='user');
-  C.width=V.videoWidth; C.height=V.videoHeight;
+  C.width=V.videoWidth; C.height=V.videoHeight; S=null; D=null;
 }
 
 $('goBtn').onclick=async()=>{
   $('goBtn').disabled=true;
-  try{
-    if(!landmarker) await loadModel();
-    $('status').textContent='Starting camera…';
-    await startCam();
-  }catch(e){
+  try{ if(!landmarker) await loadModel(); $('status').textContent='Starting camera…'; await startCam(); }
+  catch(e){
     $('goBtn').disabled=false;
     $('status').textContent = e && e.name==='NotAllowedError'
       ? 'Camera blocked. Allow camera access in your browser settings, then tap Start again.'
@@ -162,83 +186,150 @@ $('goBtn').onclick=async()=>{
     return;
   }
   try{ await navigator.wakeLock?.request('screen'); }catch(e){}
-  say('Ready'); $('start').hidden=true; $('cam').hidden=false; t0=Date.now(); running=true; loop();
+  say('Ready'); $('start').hidden=true; $('cam').hidden=false; reset(); running=true;
+  detectLoop(); requestAnimationFrame(render);
 };
 $('flipBtn').onclick=async()=>{ facing=facing==='user'?'environment':'user'; try{await startCam();}catch(e){} };
-$('soundBtn').onclick=()=>{ sound=!sound; $('soundBtn').textContent=sound?'🔊 On':'🔇 Off'; };
-$('resetBtn').onclick=()=>{ good=0;bad=0;state='up';t0=Date.now();$('count').textContent='0';$('bad').textContent='0';flash('Reset','info',800); };
+$('soundBtn').onclick=()=>{ sound=!sound; $('soundBtn').textContent=sound?'🔊':'🔇'; };
+$('resetBtn').onclick=()=>{ reset(); flash('Reset','info',800); };
 
-function ang(a,b,c){ // angle at b, pixel space
-  const ax=a.x*C.width-b.x*C.width, ay=a.y*C.height-b.y*C.height, cx=c.x*C.width-b.x*C.width, cy=c.y*C.height-b.y*C.height;
-  const d=Math.hypot(ax,ay)*Math.hypot(cx,cy); if(!d) return 180;
-  return Math.acos(Math.max(-1,Math.min(1,(ax*cx+ay*cy)/d)))*180/Math.PI;
-}
-function P(p){ return {x:(facing==='user'?1-p.x:p.x)*C.width, y:p.y*C.height}; }
-
-function draw(pts,col){
-  g.clearRect(0,0,C.width,C.height);
-  if(!pts) return;
-  const lw=Math.max(4,C.width/180);
-  g.lineCap='round'; g.lineWidth=lw; g.strokeStyle=col; g.shadowColor=col; g.shadowBlur=lw*3;
-  const chains=[[pts.sh,pts.el,pts.wr],[pts.sh,pts.hip,pts.leg,pts.an]];
-  for(const ch of chains){ g.beginPath(); ch.forEach((p,i)=>{const q=P(p); i?g.lineTo(q.x,q.y):g.moveTo(q.x,q.y);}); g.stroke(); }
-  g.shadowBlur=0;
-  for(const p of [pts.sh,pts.el,pts.wr,pts.hip,pts.leg,pts.an]){ const q=P(p); g.fillStyle='#fff'; g.beginPath(); g.arc(q.x,q.y,lw*1.4,0,7); g.fill(); g.fillStyle=col; g.beginPath(); g.arc(q.x,q.y,lw*.8,0,7); g.fill(); }
-  const e=P(pts.el); g.font=`800 ${lw*7}px Barlow,sans-serif`; g.fillStyle='#fff'; g.textAlign='center';
-  g.fillText(Math.round(elbowS)+'°',e.x,e.y-lw*4);
+/* ---------- smoothing: adaptive filter, steady when still, fast when moving ---------- */
+function smooth(lm){
+  if(!S){ S=lm.map(p=>({x:p.x,y:p.y,v:p.visibility??1})); return; }
+  for(let i=0;i<lm.length;i++){
+    const p=lm[i], s=S[i];
+    const sp=Math.hypot(p.x-s.x,p.y-s.y);
+    const a=Math.min(0.9,0.3+sp*12);
+    s.x+=(p.x-s.x)*a; s.y+=(p.y-s.y)*a; s.v+=((p.visibility??1)-s.v)*0.5;
+  }
 }
 
-function fmt(s){ return Math.floor(s/60)+':'+String(s%60).padStart(2,'0'); }
+/* ---------- geometry ---------- */
+const px=p=>({x:p.x*C.width,y:p.y*C.height});
+function ang(a,b,c){ a=px(a);b=px(b);c=px(c);
+  const ax=a.x-b.x, ay=a.y-b.y, cx=c.x-b.x, cy=c.y-b.y, d=Math.hypot(ax,ay)*Math.hypot(cx,cy);
+  return d? Math.acos(Math.max(-1,Math.min(1,(ax*cx+ay*cy)/d)))*180/Math.PI : 180; }
+const dist=(a,b)=>{a=px(a);b=px(b);return Math.hypot(a.x-b.x,a.y-b.y);};
+const vis=i=>S[i].v;
 
-function loop(){
+/* ---------- detection, once per camera frame ---------- */
+function detectLoop(){
   if(!running) return;
-  requestAnimationFrame(loop);
-  $('time').textContent=fmt(Math.floor((Date.now()-t0)/1000));
-  if(V.readyState<2||V.currentTime===lastT) return;
-  lastT=V.currentTime;
-  if(C.width!==V.videoWidth){ C.width=V.videoWidth; C.height=V.videoHeight; }
-  let res; try{ res=landmarker.detectForVideo(V,performance.now()); }catch(e){ return; }
-  const lm=res.landmarks&&res.landmarks[0];
-  if(!lm){ draw(null); info('Get your whole body in the picture'); $('depthBar').style.height='0%'; return; }
-
-  // pick the side facing the camera
-  const vis=i=>lm[i].visibility??1;
-  const L=vis(11)+vis(13)+vis(15)+vis(23)+vis(27), R=vis(12)+vis(14)+vis(16)+vis(24)+vis(28);
-  const s=L>=R?{sh:11,el:13,wr:15,hip:23,kn:25,an:27}:{sh:12,el:14,wr:16,hip:24,kn:26,an:28};
-  const ankleOk=vis(s.an)>0.4;
-  const pts={sh:lm[s.sh],el:lm[s.el],wr:lm[s.wr],hip:lm[s.hip],leg:lm[s.kn],an:ankleOk?lm[s.an]:lm[s.kn]};
-
-  const elbowRaw=ang(pts.sh,pts.el,pts.wr);
-  elbowS = elbowS==null?elbowRaw:elbowS*0.6+elbowRaw*0.4;
-  const body=ang(pts.sh,pts.hip,pts.an);
-  const dx=Math.abs(pts.an.x-pts.sh.x)*C.width, dy=Math.abs(pts.an.y-pts.sh.y)*C.height;
-  const horizontal = dx>0 && dy/dx<0.7;
-  const straight = body>=150;
-
-  $('read').innerHTML=`Elbow ${Math.round(elbowS)}°<br>Body ${Math.round(body)}°`;
-  $('depthBar').style.height=Math.max(0,Math.min(100,(165-elbowS)/(165-85)*100))+'%';
-
-  let col = straight ? '#3be08a' : '#ff3b4d';
-  if(!horizontal){ col='#ff7a1a'; draw(pts,col); info('Get in push-up position, side view'); state='up'; return; }
-  draw(pts,col);
-  if($('msg').classList.contains('info')) { $('msg').textContent=''; }
-
-  if(state==='up'){
-    if(elbowS<130){ state='down'; repMin=elbowS; repBodyMin=body; }
-  } else {
-    repMin=Math.min(repMin,elbowS); repBodyMin=Math.min(repBodyMin,body);
-    if(!straight && !$('msg').textContent) flash('Keep your body straight!','bad',700);
-    if(elbowS>155){
-      state='up';
-      if(repMin<=95 && repBodyMin>=145){
-        good++; $('count').textContent=good; $('count').classList.add('pop'); setTimeout(()=>$('count').classList.remove('pop'),220);
-        flash('GOOD!','good',700); say(String(good));
-      } else {
-        bad++; $('bad').textContent=bad;
-        const why = repMin>95 ? 'Go lower!' : 'Body not straight!';
-        flash(why,'bad',1200); say(why.replace('!',''));
-      }
+  const step=()=>{
+    if(V.readyState>=2 && V.currentTime!==lastT){
+      lastT=V.currentTime;
+      if(C.width!==V.videoWidth){ C.width=V.videoWidth; C.height=V.videoHeight; }
+      let res=null; try{ res=landmarker.detectForVideo(V,performance.now()); }catch(e){}
+      const lm=res&&res.landmarks&&res.landmarks[0];
+      if(lm){ smooth(lm); lastSeen=performance.now(); analyse(); }
+      fpsN++;
     }
+    const now=performance.now(); if(now-fpsT>1000){ $('fps').textContent=Math.round(fpsN*1000/(now-fpsT))+' fps'; fpsN=0; fpsT=now; }
+    detectLoop();
+  };
+  if(V.requestVideoFrameCallback) V.requestVideoFrameCallback(step); else requestAnimationFrame(step);
+}
+
+function count(ok,why){
+  if(ok){ good++; $('count').textContent=good; $('count').classList.add('pop'); setTimeout(()=>$('count').classList.remove('pop'),220); flash('GOOD!','good',700); say(String(good)); }
+  else { bad++; $('bad').textContent=bad; flash(why,'bad',1200); say(why.replace('!','')); }
+}
+function setDepth(p){ $('depthBar').style.height=Math.max(0,Math.min(100,p*100))+'%'; }
+
+function analyse(){
+  if(ex==='push') analysePush(); else analyseSquat();
+}
+
+function analysePush(){
+  // front vs side: in front view the shoulders are far apart compared with arm length
+  const shW=dist(S[11],S[12]);
+  const armL=(dist(S[11],S[13])+dist(S[13],S[15])+dist(S[12],S[14])+dist(S[14],S[16]))/2;
+  const both=Math.min(vis(11),vis(12),vis(15),vis(16))>0.5;
+  const f = both && armL>0 ? (shW/armL>0.45?1:0) : 0;
+  frontScore+= (f-frontScore)*0.08;
+  view = frontScore>0.5?'front':'side';
+  $('viewPill').textContent = view==='front'?'Front view':'Side view';
+
+  if(view==='front'){
+    const shY=(S[11].y+S[12].y)/2*C.height, wrY=(S[15].y+S[16].y)/2*C.height;
+    const elbow=(ang(S[11],S[13],S[15])+ang(S[12],S[14],S[16]))/2;
+    if(!both || wrY<=shY){ color='#ff7a1a'; label=''; info('Get in push-up position, both arms in the picture'); st.phase='up'; return; }
+    clearInfo();
+    const r=(wrY-shY)/shW;                      // arm height compared with shoulder width
+    st.top=Math.max(r, st.top*0.997);           // learns your "arms straight" height
+    const d=st.top? r/st.top : 1;                // 1 = top, smaller = deeper
+    setDepth((1-d)/0.5);
+    color='#3be08a'; label=Math.round(elbow)+'°';
+    $('read').firstChild.textContent=`Depth ${Math.round((1-d)*100)}% · Elbows ${Math.round(elbow)}°`;
+    if(st.phase==='up'){ if(d<0.82){ st.phase='down'; st.min1=d; st.min2=elbow; } }
+    else{
+      st.min1=Math.min(st.min1,d); st.min2=Math.min(st.min2,elbow);
+      if(d>0.92){ st.phase='up'; count(st.min1<=0.55 || (st.min1<=0.65 && st.min2<=95),'Go lower!'); }
+    }
+  } else {
+    const L=vis(11)+vis(13)+vis(15)+vis(23)+vis(27), R=vis(12)+vis(14)+vis(16)+vis(24)+vis(28);
+    const s=L>=R?[11,13,15,23,25,27]:[12,14,16,24,26,28];
+    const an = vis(s[5])>0.4 ? S[s[5]] : S[s[4]];
+    const elbow=ang(S[s[0]],S[s[1]],S[s[2]]), body=ang(S[s[0]],S[s[3]],an);
+    const dx=Math.abs(an.x-S[s[0]].x)*C.width, dy=Math.abs(an.y-S[s[0]].y)*C.height;
+    if(!(dx>0 && dy/dx<0.7)){ color='#ff7a1a'; label=''; info('Get in push-up position'); st.phase='up'; return; }
+    clearInfo();
+    const straight=body>=150; color=straight?'#3be08a':'#ff3b4d'; label=Math.round(elbow)+'°';
+    setDepth((165-elbow)/80);
+    $('read').firstChild.textContent=`Elbow ${Math.round(elbow)}° · Body ${Math.round(body)}°`;
+    if(st.phase==='up'){ if(elbow<130){ st.phase='down'; st.min1=elbow; st.bodyMin=body; } }
+    else{
+      st.min1=Math.min(st.min1,elbow); st.bodyMin=Math.min(st.bodyMin,body);
+      if(!straight && !$('msg').textContent) flash('Keep your body straight!','bad',700);
+      if(elbow>155){ st.phase='up'; count(st.min1<=95 && st.bodyMin>=145, st.min1>95?'Go lower!':'Body not straight!'); }
+    }
+  }
+}
+
+function analyseSquat(){
+  const legs=[[23,25,27],[24,26,28]].filter(l=>Math.min(vis(l[0]),vis(l[1]),vis(l[2]))>0.45);
+  const shW=dist(S[11],S[12]), torso=(dist(S[11],S[23])+dist(S[12],S[24]))/2;
+  view = torso>0 && shW/torso>0.35 ? 'front':'side';
+  $('viewPill').textContent = view==='front'?'Front view':'Side view';
+  if(!legs.length){ color='#ff7a1a'; label=''; info('Get your whole body in the picture'); st.phase='up'; return; }
+  const knee=legs.reduce((a,l)=>a+ang(S[l[0]],S[l[1]],S[l[2]]),0)/legs.length;
+  const hipY=legs.reduce((a,l)=>a+S[l[0]].y,0)/legs.length*C.height, kneeY=legs.reduce((a,l)=>a+S[l[1]].y,0)/legs.length*C.height;
+  const up=S[0].y<S[23].y && S[23].y<S[27].y+0.05;         // standing-ish, head above hips
+  if(!up){ color='#ff7a1a'; label=''; info('Stand up, whole body in the picture'); st.phase='up'; return; }
+  clearInfo();
+  const t=kneeY-hipY; st.thigh=Math.max(t, st.thigh*0.998);  // learns your thigh length standing
+  const d=st.thigh? t/st.thigh : 1;                          // 1 standing, ~0.2 at parallel
+  color='#3be08a'; label=Math.round(knee)+'°';
+  setDepth(Math.max((170-knee)/80,(1-d)/0.75));
+  $('read').firstChild.textContent=`Knees ${Math.round(knee)}° · Depth ${Math.round((1-d)*100)}%`;
+  if(st.phase==='up'){ if(knee<140 || d<0.7){ st.phase='down'; st.min1=knee; st.min2=d; } }
+  else{
+    st.min1=Math.min(st.min1,knee); st.min2=Math.min(st.min2,d);
+    if(knee>160 && d>0.85){ st.phase='up'; count(st.min1<=100 || st.min2<=0.3,'Go lower!'); }
+  }
+}
+
+/* ---------- drawing, every screen refresh, glides toward the latest pose ---------- */
+const BONES=[[11,12],[11,13],[13,15],[12,14],[14,16],[11,23],[12,24],[23,24],[23,25],[25,27],[24,26],[26,28],[15,19],[16,20],[27,31],[28,32]];
+const JOINTS=[0,11,12,13,14,15,16,23,24,25,26,27,28];
+function render(){
+  if(!running) return;
+  requestAnimationFrame(render);
+  $('time').textContent=(()=>{const s=Math.floor((Date.now()-t0)/1000);return Math.floor(s/60)+':'+String(s%60).padStart(2,'0');})();
+  g.clearRect(0,0,C.width,C.height);
+  if(!S || performance.now()-lastSeen>600){ if(S && performance.now()-lastSeen>600){ $('viewPill').textContent='Finding you…'; info('Step into the picture'); } return; }
+  if(!D) D=S.map(p=>({...p}));
+  for(let i=0;i<S.length;i++){ D[i].x+=(S[i].x-D[i].x)*0.55; D[i].y+=(S[i].y-D[i].y)*0.55; D[i].v=S[i].v; }
+  const P=p=>({x:(facing==='user'?1-p.x:p.x)*C.width, y:p.y*C.height});
+  const lw=Math.max(4,C.width/200);
+  g.lineCap='round'; g.lineWidth=lw; g.strokeStyle=color; g.shadowColor=color; g.shadowBlur=lw*3;
+  g.beginPath();
+  for(const [a,b] of BONES){ if(D[a].v<0.35||D[b].v<0.35) continue; const p=P(D[a]),q=P(D[b]); g.moveTo(p.x,p.y); g.lineTo(q.x,q.y); }
+  g.stroke(); g.shadowBlur=0;
+  for(const j of JOINTS){ if(D[j].v<0.35) continue; const q=P(D[j]); g.fillStyle='#fff'; g.beginPath(); g.arc(q.x,q.y,lw*1.3,0,7); g.fill(); g.fillStyle=color; g.beginPath(); g.arc(q.x,q.y,lw*.75,0,7); g.fill(); }
+  if(label){
+    const j = ex==='squat' ? (D[25].v>D[26].v?25:26) : (D[13].v>D[14].v?13:14);
+    const q=P(D[j]); g.font=`800 ${lw*6}px Barlow,sans-serif`; g.fillStyle='#fff'; g.textAlign='center'; g.fillText(label,q.x,q.y-lw*4);
   }
 }
 </script>
