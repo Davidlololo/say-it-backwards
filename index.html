@@ -1,0 +1,168 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="theme-color" content="#170d1c"></head><body style="margin:0">
+<title>Say It Backwards</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bungee&family=Figtree:wght@400;600;800&display=swap">
+<style>
+/* Layout: one phone screen — tape-deck header, giant record button, two "tapes" (your phrase, your copy) */
+:root{
+  --bg:#170d1c; --panel:#241629; --line:#3a2742; --fg:#fbeff6; --muted:#b59cbf;
+  --rec:#ff4f6d; --rev:#40d9ff; --ok:#8cf5a8;
+  --display:"Bungee","Arial Black",Impact,sans-serif;
+  --body:"Figtree",system-ui,-apple-system,"Segoe UI",sans-serif;
+  color-scheme:dark;
+}
+html,body{height:100%}
+body{background:var(--bg);color:var(--fg);font-family:var(--body);font-size:16px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));}
+.app{max-width:440px;margin:0 auto;padding-block:18px 28px;display:flex;flex-direction:column;gap:18px}
+h1{font-family:var(--display);font-weight:400;font-size:clamp(28px,9vw,40px);line-height:1;margin:0;text-align:center;letter-spacing:.5px}
+h1 .flip{display:inline-block;transform:scaleX(-1);color:var(--rev)}
+.sub{margin:6px 0 0;text-align:center;color:var(--muted);font-size:14px}
+.steps{display:flex;gap:8px}
+.step{flex:1;border:1px solid var(--line);border-radius:999px;padding:8px 6px;text-align:center;font-weight:800;font-size:13px;
+  background:transparent;color:var(--muted);cursor:pointer;font-family:var(--body)}
+.step[aria-selected="true"]{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+.stage{display:flex;flex-direction:column;align-items:center;gap:10px;padding-block:6px}
+.big{width:min(62vw,220px);aspect-ratio:1;max-width:100%;border-radius:50%;border:0;cursor:pointer;
+  background:radial-gradient(circle at 35% 30%,#ff8399,var(--rec) 55%,#b8263f);color:#fff;
+  font-family:var(--display);font-size:clamp(20px,6vw,26px);box-shadow:0 0 0 10px #ff4f6d22,0 14px 40px #0008;
+  transition:transform .15s}
+.big:active{transform:scale(.96)}
+.big.on{animation:pulse 1s infinite;background:radial-gradient(circle at 35% 30%,#fff,#ffd0d9 40%,var(--rec) 80%);color:#8a0f25}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 10px #ff4f6d33}50%{box-shadow:0 0 0 26px #ff4f6d00}}
+@media (prefers-reduced-motion:reduce){.big.on{animation:none}}
+.timer{font-variant-numeric:tabular-nums;font-weight:800;color:var(--muted);min-height:1.3em}
+.hint{text-align:center;color:var(--muted);font-size:14px;margin:0;max-width:34ch}
+.tape{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:14px;display:flex;flex-direction:column;gap:10px}
+.tape h2{margin:0;font-size:13px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);font-weight:800}
+canvas{width:100%;height:56px;display:block}
+.row{display:flex;gap:8px}
+.row button{flex:1;border:0;border-radius:12px;padding:12px 8px;font-weight:800;font-size:15px;font-family:var(--body);cursor:pointer}
+.b-rev{background:var(--rev);color:#06222b}
+.b-fwd{background:transparent;color:var(--fg);border:1px solid var(--line)!important}
+button:disabled{opacity:.35;cursor:default}
+button:focus-visible{outline:3px solid var(--fg);outline-offset:3px}
+.empty{color:var(--muted);font-size:14px;margin:0}
+.note{font-size:13px;color:var(--muted);background:#ff4f6d14;border:1px solid #ff4f6d44;border-radius:12px;padding:10px 12px;margin:0}
+.note[hidden]{display:none}
+input[type=file]{display:none}
+</style>
+
+<div class="app">
+  <header>
+    <h1>SAY IT <span class="flip">BACKWARDS</span></h1>
+    <p class="sub">The reverse audio challenge</p>
+  </header>
+
+  <div class="steps" role="tablist">
+    <button class="step" id="tab1" role="tab" aria-selected="true">1 · Say a word</button>
+    <button class="step" id="tab2" role="tab" aria-selected="false">2 · Copy it</button>
+  </div>
+
+  <div class="stage">
+    <button class="big" id="recBtn">TAP TO<br>TALK</button>
+    <div class="timer" id="timer"></div>
+    <p class="hint" id="hint">Tap, say something, tap again to stop. Then hear it backwards.</p>
+  </div>
+
+  <p class="note" id="note" hidden>This viewer blocks the live mic, so tapping opens your phone's voice recorder instead. Record, save, and it comes straight back here.</p>
+  <input type="file" id="fileIn" accept="audio/*" capture>
+
+  <section class="tape" id="tapeA">
+    <h2>1 · What you said</h2>
+    <canvas id="cvA"></canvas>
+    <p class="empty" id="emptyA">Nothing recorded yet.</p>
+    <div class="row">
+      <button class="b-rev" id="revA" disabled>◀◀ Backwards</button>
+      <button class="b-fwd" id="fwdA" disabled>▶ Normal</button>
+    </div>
+  </section>
+
+  <section class="tape" id="tapeB">
+    <h2>2 · Your copy, flipped back</h2>
+    <canvas id="cvB"></canvas>
+    <p class="empty" id="emptyB">Listen to step 1 backwards, then switch to “Copy it” and imitate that weird sound. We flip your copy back — does it sound like the real word?</p>
+    <div class="row">
+      <button class="b-rev" id="revB" disabled>◀◀ Flip it back</button>
+      <button class="b-fwd" id="fwdB" disabled>▶ Your copy</button>
+    </div>
+  </section>
+</div>
+
+<script>
+(()=>{
+const $=id=>document.getElementById(id);
+let ctx=null, step=1, recorder=null, chunks=[], stream=null, t0=0, tick=null, playing=null;
+const slots={1:{buf:null,rev:null,cv:$('cvA'),empty:$('emptyA'),r:$('revA'),f:$('fwdA')},
+             2:{buf:null,rev:null,cv:$('cvB'),empty:$('emptyB'),r:$('revB'),f:$('fwdB')}};
+let liveMic=!!(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia&&window.MediaRecorder);
+
+function ac(){ if(!ctx) ctx=new (window.AudioContext||window.webkitAudioContext)(); if(ctx.state==='suspended') ctx.resume(); return ctx; }
+
+function setStep(n){
+  step=n; $('tab1').setAttribute('aria-selected',n===1); $('tab2').setAttribute('aria-selected',n===2);
+  $('hint').textContent = n===1 ? 'Tap, say something, tap again to stop. Then hear it backwards.'
+                                : 'Copy the backwards sound from step 1 as close as you can. We flip it back.';
+}
+$('tab1').onclick=()=>setStep(1); $('tab2').onclick=()=>setStep(2);
+
+function reverse(buf){
+  const c=ac(), out=c.createBuffer(buf.numberOfChannels,buf.length,buf.sampleRate);
+  for(let ch=0;ch<buf.numberOfChannels;ch++){ const a=buf.getChannelData(ch), b=out.getChannelData(ch), n=a.length; for(let i=0;i<n;i++) b[i]=a[n-1-i]; }
+  return out;
+}
+function draw(cv,buf,color){
+  const dpr=window.devicePixelRatio||1, w=cv.clientWidth, h=cv.clientHeight;
+  cv.width=w*dpr; cv.height=h*dpr; const g=cv.getContext('2d'); g.scale(dpr,dpr); g.clearRect(0,0,w,h);
+  const d=buf.getChannelData(0), bars=Math.floor(w/4), per=Math.floor(d.length/bars)||1; g.fillStyle=color;
+  for(let i=0;i<bars;i++){ let m=0; for(let j=0;j<per;j+=8){ const v=Math.abs(d[i*per+j]||0); if(v>m)m=v; }
+    const bh=Math.max(2,Math.min(1,m*1.6)*h); g.fillRect(i*4,(h-bh)/2,2.5,bh); }
+}
+function play(buf){
+  const c=ac(); if(playing){ try{playing.stop()}catch(e){} }
+  const s=c.createBufferSource(); s.buffer=buf; s.connect(c.destination); s.start(); playing=s;
+}
+async function load(blob){
+  try{
+    const arr=await blob.arrayBuffer();
+    const buf=await new Promise((res,rej)=>{ const p=ac().decodeAudioData(arr,res,rej); if(p&&p.catch)p.catch(rej); });
+    const s=slots[step]; s.buf=buf; s.rev=reverse(buf);
+    s.empty.hidden=true; s.r.disabled=false; s.f.disabled=false;
+    draw(s.cv,s.rev,getComputedStyle(document.documentElement).getPropertyValue(step===1?'--rev':'--ok'));
+    play(s.rev);
+    if(step===1){ $('hint').textContent='That’s you backwards! Now try “Copy it”.'; }
+    else { $('hint').textContent='Flipped back! Did it sound like the real word?'; }
+  }catch(e){ $('hint').textContent='Couldn’t read that recording. Try again.'; }
+}
+
+for(const n of [1,2]){ const s=slots[n]; s.r.onclick=()=>s.rev&&play(s.rev); s.f.onclick=()=>s.buf&&play(s.buf); }
+
+function useFallback(){ liveMic=false; $('note').hidden=false; $('recBtn').innerHTML='TAP TO<br>RECORD'; }
+$('fileIn').onchange=e=>{ const f=e.target.files[0]; if(f) load(f); e.target.value=''; };
+
+async function start(){
+  ac();
+  try{ stream=await navigator.mediaDevices.getUserMedia({audio:true}); }
+  catch(e){ useFallback(); $('fileIn').click(); return; }
+  chunks=[]; recorder=new MediaRecorder(stream);
+  recorder.ondataavailable=e=>e.data.size&&chunks.push(e.data);
+  recorder.onstop=()=>{ stream.getTracks().forEach(t=>t.stop()); load(new Blob(chunks,{type:recorder.mimeType||'audio/webm'})); };
+  recorder.start(); t0=Date.now();
+  $('recBtn').classList.add('on'); $('recBtn').innerHTML='TAP TO<br>STOP';
+  tick=setInterval(()=>{ const s=(Date.now()-t0)/1000; $('timer').textContent='● REC '+s.toFixed(1)+'s'; if(s>=15) stop(); },100);
+}
+function stop(){
+  clearInterval(tick); $('timer').textContent='';
+  $('recBtn').classList.remove('on'); $('recBtn').innerHTML='TAP TO<br>TALK';
+  if(recorder&&recorder.state!=='inactive') recorder.stop();
+}
+$('recBtn').onclick=()=>{
+  if(!liveMic){ ac(); $('fileIn').click(); return; }
+  if(recorder&&recorder.state==='recording') stop(); else start();
+};
+if(!liveMic) useFallback();
+})();
+</script>
+
+</body></html>
