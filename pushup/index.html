@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0f1012">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Pushup AI</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=Barlow:wght@500;700;800&display=swap">
+<style>
+/* Layout: start screen with setup steps -> full-screen camera with skeleton overlay, giant rep count, depth bar */
+:root{
+  --bg:#0f1012; --panel:#1b1c20; --line:#2c2e34; --fg:#f5f3ee; --muted:#9a9ca4;
+  --accent:#ff7a1a; --good:#3be08a; --bad:#ff3b4d;
+  --display:"Anton",Impact,"Arial Narrow",sans-serif;
+  --body:"Barlow",system-ui,-apple-system,"Segoe UI",sans-serif;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--fg);font-family:var(--body);font-size:16px;overflow:hidden}
+[hidden]{display:none!important}
+button{font-family:var(--body);cursor:pointer}
+button:focus-visible{outline:3px solid var(--fg);outline-offset:3px}
+
+/* start */
+#start{height:100%;overflow:auto;padding:max(24px,env(safe-area-inset-top)) max(18px,env(safe-area-inset-right)) max(24px,env(safe-area-inset-bottom)) max(18px,env(safe-area-inset-left))}
+.wrap{max-width:440px;margin:0 auto;display:flex;flex-direction:column;gap:20px}
+h1{font-family:var(--display);font-weight:400;font-size:clamp(56px,18vw,84px);line-height:.9;margin:0;letter-spacing:1px}
+h1 span{color:var(--accent)}
+.tag{margin:0;color:var(--muted);font-weight:700}
+ol{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:10px;counter-reset:s}
+ol li{counter-increment:s;display:grid;grid-template-columns:34px 1fr;gap:12px;align-items:start;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px}
+ol li::before{content:counter(s);font-family:var(--display);font-size:24px;color:var(--accent);line-height:1}
+ol b{display:block}
+ol small{color:var(--muted);font-size:14px}
+.rules{display:flex;gap:8px}
+.rule{flex:1;border:1px solid var(--line);border-radius:12px;padding:10px;font-size:13px;color:var(--muted)}
+.rule b{display:block;font-size:15px;color:var(--fg)}
+.go{background:var(--accent);color:#1a0d00;border:0;border-radius:16px;padding:18px;font-family:var(--display);font-size:28px;letter-spacing:1px}
+.go:disabled{opacity:.6}
+#status{min-height:1.2em;margin:0;color:var(--muted);text-align:center;font-weight:700}
+.camsel{display:flex;gap:8px}
+.camsel button{flex:1;background:transparent;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:10px;font-weight:800}
+.camsel button[aria-pressed="true"]{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+
+/* camera */
+#cam{position:fixed;inset:0;background:#000}
+#v,#c{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+#v.mirror{transform:scaleX(-1)}
+.top{position:absolute;top:0;left:0;right:0;padding:max(14px,env(safe-area-inset-top)) max(16px,env(safe-area-inset-right)) 14px max(16px,env(safe-area-inset-left));
+  display:flex;justify-content:space-between;align-items:flex-start;background:linear-gradient(#000c,#0000)}
+.count{font-family:var(--display);font-size:clamp(96px,30vw,150px);line-height:.85;font-variant-numeric:tabular-nums;transition:color .2s,transform .2s}
+.count.pop{transform:scale(1.12);color:var(--good)}
+.lbl{font-size:12px;letter-spacing:2px;text-transform:uppercase;color:#fffa;font-weight:800}
+.side{text-align:right;display:flex;flex-direction:column;gap:8px;align-items:flex-end}
+.stat{font-family:var(--display);font-size:34px;line-height:1;font-variant-numeric:tabular-nums}
+.stat.bad{color:var(--bad)}
+.msg{position:absolute;left:50%;top:44%;transform:translate(-50%,-50%);font-family:var(--display);font-size:clamp(30px,9vw,46px);text-align:center;
+  text-shadow:0 2px 18px #000;padding:0 20px;width:100%;pointer-events:none;letter-spacing:.5px}
+.msg.good{color:var(--good)} .msg.bad{color:var(--bad)} .msg.info{color:#fff;font-size:clamp(20px,6vw,28px)}
+.depth{position:absolute;right:max(14px,env(safe-area-inset-right));top:38%;height:30%;width:14px;border-radius:8px;background:#ffffff26;overflow:hidden}
+.depth i{position:absolute;left:0;right:0;bottom:0;background:var(--accent);border-radius:8px;transition:height .08s}
+.depth::after{content:"";position:absolute;left:-4px;right:-4px;top:12%;height:2px;background:#fff}
+.bottom{position:absolute;bottom:0;left:0;right:0;padding:14px max(16px,env(safe-area-inset-right)) max(14px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left));
+  background:linear-gradient(#0000,#000c);display:flex;gap:8px;align-items:center}
+.chip{background:#ffffff1f;border:0;color:#fff;border-radius:999px;padding:10px 14px;font-weight:800;font-size:14px;backdrop-filter:blur(6px)}
+.read{margin-right:auto;font-size:13px;color:#fffc;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.35}
+</style>
+</head>
+<body>
+
+<section id="start">
+  <div class="wrap">
+    <div>
+      <h1>PUSHUP <span>AI</span></h1>
+      <p class="tag">Tracks your body. Counts only real reps.</p>
+    </div>
+    <ol>
+      <li><div><b>Phone on the floor, sideways</b><small>Lean it on something, about 2 meters to your side.</small></div></li>
+      <li><div><b>Whole body in the picture</b><small>Head to feet, seen from the side.</small></div></li>
+      <li><div><b>Go</b><small>It says every rep out loud, so you don't need to look.</small></div></li>
+    </ol>
+    <div class="rules">
+      <div class="rule"><b>Go low</b>Elbows bent to 90° or less</div>
+      <div class="rule"><b>Stay straight</b>No sagging hips or butt in the air</div>
+      <div class="rule"><b>Lock out</b>Arms straight at the top</div>
+    </div>
+    <div class="camsel" role="group" aria-label="Camera">
+      <button id="selFront" aria-pressed="true">Front camera</button>
+      <button id="selBack" aria-pressed="false">Back camera</button>
+    </div>
+    <button class="go" id="goBtn">START</button>
+    <p id="status"></p>
+  </div>
+</section>
+
+<section id="cam" hidden>
+  <video id="v" playsinline muted autoplay></video>
+  <canvas id="c"></canvas>
+  <div class="top">
+    <div>
+      <div class="lbl">Good reps</div>
+      <div class="count" id="count">0</div>
+    </div>
+    <div class="side">
+      <div><div class="lbl">No-reps</div><div class="stat bad" id="bad">0</div></div>
+      <div><div class="lbl">Time</div><div class="stat" id="time">0:00</div></div>
+    </div>
+  </div>
+  <div class="msg info" id="msg">Get in push-up position</div>
+  <div class="depth" aria-hidden="true"><i id="depthBar" style="height:0%"></i></div>
+  <div class="bottom">
+    <div class="read" id="read">Elbow —°<br>Body —°</div>
+    <button class="chip" id="soundBtn">🔊 On</button>
+    <button class="chip" id="flipBtn">Flip</button>
+    <button class="chip" id="resetBtn">Reset</button>
+  </div>
+</section>
+
+<script type="module">
+const $=id=>document.getElementById(id);
+const V=$('v'), C=$('c'), g=C.getContext('2d');
+let facing='user', stream=null, landmarker=null, running=false, lastT=-1, sound=true;
+let good=0, bad=0, state='up', repMin=180, repBodyMin=180, elbowS=null, t0=0, msgTimer=null;
+
+$('selFront').onclick=()=>{facing='user';$('selFront').setAttribute('aria-pressed',true);$('selBack').setAttribute('aria-pressed',false)};
+$('selBack').onclick=()=>{facing='environment';$('selBack').setAttribute('aria-pressed',true);$('selFront').setAttribute('aria-pressed',false)};
+
+function say(t){ if(!sound||!window.speechSynthesis) return; speechSynthesis.cancel(); const u=new SpeechSynthesisUtterance(t); u.rate=1.15; speechSynthesis.speak(u); }
+function flash(text,cls,ms=1100){ const m=$('msg'); m.textContent=text; m.className='msg '+cls; clearTimeout(msgTimer); if(ms) msgTimer=setTimeout(()=>{m.textContent='';},ms); }
+function info(text){ if($('msg').classList.contains('info')||!$('msg').textContent){ const m=$('msg'); m.className='msg info'; m.textContent=text; } }
+
+async function loadModel(){
+  $('status').textContent='Loading the AI… (first time takes a few seconds)';
+  const {FilesetResolver,PoseLandmarker}=await import('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs');
+  const files=await FilesetResolver.forVisionTasks('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm');
+  const opts=d=>({baseOptions:{modelAssetPath:'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_full/float16/1/pose_landmarker_full.task',delegate:d},runningMode:'VIDEO',numPoses:1});
+  try{ landmarker=await PoseLandmarker.createFromOptions(files,opts('GPU')); }
+  catch(e){ landmarker=await PoseLandmarker.createFromOptions(files,opts('CPU')); }
+}
+async function startCam(){
+  if(stream) stream.getTracks().forEach(t=>t.stop());
+  stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:facing,width:{ideal:1280},height:{ideal:720}},audio:false});
+  V.srcObject=stream; await V.play();
+  V.classList.toggle('mirror',facing==='user');
+  C.width=V.videoWidth; C.height=V.videoHeight;
+}
+
+$('goBtn').onclick=async()=>{
+  $('goBtn').disabled=true;
+  try{
+    if(!landmarker) await loadModel();
+    $('status').textContent='Starting camera…';
+    await startCam();
+  }catch(e){
+    $('goBtn').disabled=false;
+    $('status').textContent = e && e.name==='NotAllowedError'
+      ? 'Camera blocked. Allow camera access in your browser settings, then tap Start again.'
+      : 'Could not start: '+(e&&e.message||e)+'. Check your internet and try again.';
+    return;
+  }
+  try{ await navigator.wakeLock?.request('screen'); }catch(e){}
+  say('Ready'); $('start').hidden=true; $('cam').hidden=false; t0=Date.now(); running=true; loop();
+};
+$('flipBtn').onclick=async()=>{ facing=facing==='user'?'environment':'user'; try{await startCam();}catch(e){} };
+$('soundBtn').onclick=()=>{ sound=!sound; $('soundBtn').textContent=sound?'🔊 On':'🔇 Off'; };
+$('resetBtn').onclick=()=>{ good=0;bad=0;state='up';t0=Date.now();$('count').textContent='0';$('bad').textContent='0';flash('Reset','info',800); };
+
+function ang(a,b,c){ // angle at b, pixel space
+  const ax=a.x*C.width-b.x*C.width, ay=a.y*C.height-b.y*C.height, cx=c.x*C.width-b.x*C.width, cy=c.y*C.height-b.y*C.height;
+  const d=Math.hypot(ax,ay)*Math.hypot(cx,cy); if(!d) return 180;
+  return Math.acos(Math.max(-1,Math.min(1,(ax*cx+ay*cy)/d)))*180/Math.PI;
+}
+function P(p){ return {x:(facing==='user'?1-p.x:p.x)*C.width, y:p.y*C.height}; }
+
+function draw(pts,col){
+  g.clearRect(0,0,C.width,C.height);
+  if(!pts) return;
+  const lw=Math.max(4,C.width/180);
+  g.lineCap='round'; g.lineWidth=lw; g.strokeStyle=col; g.shadowColor=col; g.shadowBlur=lw*3;
+  const chains=[[pts.sh,pts.el,pts.wr],[pts.sh,pts.hip,pts.leg,pts.an]];
+  for(const ch of chains){ g.beginPath(); ch.forEach((p,i)=>{const q=P(p); i?g.lineTo(q.x,q.y):g.moveTo(q.x,q.y);}); g.stroke(); }
+  g.shadowBlur=0;
+  for(const p of [pts.sh,pts.el,pts.wr,pts.hip,pts.leg,pts.an]){ const q=P(p); g.fillStyle='#fff'; g.beginPath(); g.arc(q.x,q.y,lw*1.4,0,7); g.fill(); g.fillStyle=col; g.beginPath(); g.arc(q.x,q.y,lw*.8,0,7); g.fill(); }
+  const e=P(pts.el); g.font=`800 ${lw*7}px Barlow,sans-serif`; g.fillStyle='#fff'; g.textAlign='center';
+  g.fillText(Math.round(elbowS)+'°',e.x,e.y-lw*4);
+}
+
+function fmt(s){ return Math.floor(s/60)+':'+String(s%60).padStart(2,'0'); }
+
+function loop(){
+  if(!running) return;
+  requestAnimationFrame(loop);
+  $('time').textContent=fmt(Math.floor((Date.now()-t0)/1000));
+  if(V.readyState<2||V.currentTime===lastT) return;
+  lastT=V.currentTime;
+  if(C.width!==V.videoWidth){ C.width=V.videoWidth; C.height=V.videoHeight; }
+  let res; try{ res=landmarker.detectForVideo(V,performance.now()); }catch(e){ return; }
+  const lm=res.landmarks&&res.landmarks[0];
+  if(!lm){ draw(null); info('Get your whole body in the picture'); $('depthBar').style.height='0%'; return; }
+
+  // pick the side facing the camera
+  const vis=i=>lm[i].visibility??1;
+  const L=vis(11)+vis(13)+vis(15)+vis(23)+vis(27), R=vis(12)+vis(14)+vis(16)+vis(24)+vis(28);
+  const s=L>=R?{sh:11,el:13,wr:15,hip:23,kn:25,an:27}:{sh:12,el:14,wr:16,hip:24,kn:26,an:28};
+  const ankleOk=vis(s.an)>0.4;
+  const pts={sh:lm[s.sh],el:lm[s.el],wr:lm[s.wr],hip:lm[s.hip],leg:lm[s.kn],an:ankleOk?lm[s.an]:lm[s.kn]};
+
+  const elbowRaw=ang(pts.sh,pts.el,pts.wr);
+  elbowS = elbowS==null?elbowRaw:elbowS*0.6+elbowRaw*0.4;
+  const body=ang(pts.sh,pts.hip,pts.an);
+  const dx=Math.abs(pts.an.x-pts.sh.x)*C.width, dy=Math.abs(pts.an.y-pts.sh.y)*C.height;
+  const horizontal = dx>0 && dy/dx<0.7;
+  const straight = body>=150;
+
+  $('read').innerHTML=`Elbow ${Math.round(elbowS)}°<br>Body ${Math.round(body)}°`;
+  $('depthBar').style.height=Math.max(0,Math.min(100,(165-elbowS)/(165-85)*100))+'%';
+
+  let col = straight ? '#3be08a' : '#ff3b4d';
+  if(!horizontal){ col='#ff7a1a'; draw(pts,col); info('Get in push-up position, side view'); state='up'; return; }
+  draw(pts,col);
+  if($('msg').classList.contains('info')) { $('msg').textContent=''; }
+
+  if(state==='up'){
+    if(elbowS<130){ state='down'; repMin=elbowS; repBodyMin=body; }
+  } else {
+    repMin=Math.min(repMin,elbowS); repBodyMin=Math.min(repBodyMin,body);
+    if(!straight && !$('msg').textContent) flash('Keep your body straight!','bad',700);
+    if(elbowS>155){
+      state='up';
+      if(repMin<=95 && repBodyMin>=145){
+        good++; $('count').textContent=good; $('count').classList.add('pop'); setTimeout(()=>$('count').classList.remove('pop'),220);
+        flash('GOOD!','good',700); say(String(good));
+      } else {
+        bad++; $('bad').textContent=bad;
+        const why = repMin>95 ? 'Go lower!' : 'Body not straight!';
+        flash(why,'bad',1200); say(why.replace('!',''));
+      }
+    }
+  }
+}
+</script>
+</body>
+</html>
