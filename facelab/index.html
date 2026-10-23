@@ -1,0 +1,448 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0a0a0b">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Face Lab</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&display=swap">
+<style>
+/* Layout: camera fills the screen; a filter strip and shutter sit in a dark dock at the bottom. */
+:root{
+  --bg:#0a0a0b; --ink:#f5f4f0; --muted:#a3a19b; --accent:#d9ff3f; --rec:#ff3b3b; --glass:rgba(14,14,16,.6); --line:rgba(255,255,255,.12);
+  --font:"Bricolage Grotesque",system-ui,-apple-system,"Segoe UI",sans-serif;
+  color-scheme:dark;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--font);font-weight:600;overflow:hidden;user-select:none;-webkit-user-select:none}
+button,a{font-family:inherit;color:inherit;border:0;background:none;cursor:pointer}
+button:focus-visible{outline:3px solid var(--accent);outline-offset:3px}
+[hidden]{display:none!important}
+#out{position:fixed;inset:0;width:100%;height:100%;object-fit:cover;background:#000;touch-action:none}
+video#v{display:none}
+
+#start{position:fixed;inset:0;z-index:5;display:flex;flex-direction:column;justify-content:flex-end;gap:16px;
+  padding:max(24px,env(safe-area-inset-top)) max(20px,env(safe-area-inset-right)) max(28px,env(safe-area-inset-bottom)) max(20px,env(safe-area-inset-left));
+  background:radial-gradient(90% 60% at 80% 20%,#2a3310 0%,transparent 60%),var(--bg)}
+#start h1{font-size:clamp(64px,21vw,104px);line-height:.85;margin:0;font-weight:800;letter-spacing:-.04em}
+#start h1 em{font-style:normal;color:var(--accent)}
+#start p{margin:0;color:var(--muted);font-size:17px;line-height:1.4;max-width:30ch}
+.list{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 8px}
+.list span{border:1px solid var(--line);border-radius:999px;padding:6px 11px;font-size:13px;color:#d6d4ce}
+.go{background:var(--accent);color:#111;font-size:19px;font-weight:800;padding:18px;border-radius:18px}
+#status{min-height:1.3em;color:var(--muted);font-size:14px;margin:0}
+#status.err{color:#ff8a8a}
+
+.top{position:fixed;top:0;left:0;right:0;z-index:3;display:flex;justify-content:space-between;align-items:center;gap:8px;
+  padding:max(12px,env(safe-area-inset-top)) max(14px,env(safe-area-inset-right)) 0 max(14px,env(safe-area-inset-left))}
+.brand{font-weight:800;font-size:22px;letter-spacing:-.02em;text-shadow:0 1px 8px #0008}
+.brand em{font-style:normal;color:var(--accent)}
+.ic{width:44px;height:44px;border-radius:50%;background:var(--glass);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border:1px solid var(--line);display:grid;place-items:center;font-size:19px}
+.pill{position:fixed;top:max(66px,calc(env(safe-area-inset-top) + 58px));left:50%;transform:translateX(-50%);z-index:3;background:var(--glass);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+  padding:8px 14px;border-radius:999px;font-size:14px;white-space:nowrap}
+.pill.rec{background:var(--rec)}
+
+.dock{position:fixed;left:0;right:0;bottom:0;z-index:3;padding:26px 0 max(16px,env(safe-area-inset-bottom));background:linear-gradient(transparent,rgba(0,0,0,.8) 35%)}
+.strip{display:flex;gap:10px;overflow-x:auto;scroll-snap-type:x mandatory;padding:4px max(16px,env(safe-area-inset-left)) 10px;scrollbar-width:none}
+.strip::-webkit-scrollbar{display:none}
+.fl{flex:none;scroll-snap-align:center;display:flex;flex-direction:column;align-items:center;gap:6px;width:66px}
+.fl .dot{width:58px;height:58px;border-radius:50%;display:grid;place-items:center;font-size:26px;background:var(--glass);border:2px solid var(--line);transition:transform .15s,border-color .15s}
+.fl span{font-size:12px;color:var(--muted);white-space:nowrap}
+.fl[aria-pressed="true"] .dot{border-color:var(--accent);transform:scale(1.1)}
+.fl[aria-pressed="true"] span{color:var(--ink)}
+.shut{display:flex;justify-content:center;align-items:center;gap:40px;margin-top:6px}
+.recbtn{width:76px;height:76px;border-radius:50%;border:5px solid #fff;display:grid;place-items:center;position:relative}
+.recbtn i{width:56px;height:56px;border-radius:50%;background:var(--rec);transition:all .2s}
+.recbtn.on i{width:26px;height:26px;border-radius:7px}
+.recbtn svg{position:absolute;inset:-5px;transform:rotate(-90deg)}
+.recbtn circle{fill:none;stroke:var(--accent);stroke-width:5;stroke-dasharray:264;stroke-dashoffset:264}
+.side{width:48px;height:48px}
+
+#result{position:fixed;inset:0;z-index:6;background:rgba(0,0,0,.94);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;
+  padding:max(20px,env(safe-area-inset-top)) max(16px,env(safe-area-inset-right)) max(20px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left))}
+#result video,#result img{max-width:100%;max-height:64vh;border-radius:18px;background:#000}
+.acts{display:flex;flex-direction:column;gap:10px;width:100%;max-width:340px}
+.btn{padding:15px;border-radius:16px;font-size:17px;font-weight:800;text-align:center;text-decoration:none;display:block}
+.b1{background:var(--accent);color:#111}.b2{background:rgba(255,255,255,.1)}
+</style>
+</head>
+<body>
+<video id="v" playsinline muted autoplay></video>
+<canvas id="out"></canvas>
+
+<section id="start">
+  <h1>Face<br><em>Lab</em></h1>
+  <p>Realistic filters painted onto your real face and hair. Hold the screen to see the before.</p>
+  <div class="list"><span>💈 Buzzcut</span><span>👱 Blonde</span><span>🩷 Pink hair</span><span>🧔 Beard</span><span>💀 Skull paint</span><span>🧟 Zombie</span><span>🧛 Vampire</span><span>🇷🇴 Flag paint</span></div>
+  <button class="go" id="goBtn">Turn on camera</button>
+  <p id="status"></p>
+</section>
+
+<div class="top" id="top" hidden>
+  <span class="brand">Face <em>Lab</em></span>
+  <button class="ic" id="flipBtn" aria-label="Flip camera">🔄</button>
+</div>
+<div class="pill" id="pill" hidden></div>
+
+<div class="dock" id="dock" hidden>
+  <div class="strip" id="strip"></div>
+  <div class="shut">
+    <button class="ic side" id="photoBtn" aria-label="Take photo">📷</button>
+    <button class="recbtn" id="recBtn" aria-label="Record video"><svg viewBox="0 0 88 88"><circle cx="44" cy="44" r="42" id="recRing"/></svg><i></i></button>
+    <button class="ic side" id="beforeBtn" aria-label="Show before">👁️</button>
+  </div>
+</div>
+
+<section id="result" hidden>
+  <video id="clip" playsinline controls loop></video>
+  <img id="shot" alt="Your photo" hidden>
+  <div class="acts">
+    <button class="btn b1" id="shareBtn">Share</button>
+    <a class="btn b2" id="saveBtn" download="face-lab.mp4">Save</a>
+    <button class="btn b2" id="againBtn">Back to camera</button>
+  </div>
+</section>
+
+<script>
+const FACE_UV=[0.5,0.3475,0.5,0.4525,0.5,0.3976,0.4821,0.528,0.5002,0.4728,0.4999,0.5017,0.4995,0.5989,0.2897,0.6192,0.5,0.6876,0.5,0.7301,0.5,0.893,0.5,0.3338,0.5,0.3208,0.5,0.3077,0.5,0.3047,0.5,0.2941,0.5,0.2806,0.5,0.263,0.5,0.2186,0.4998,0.437,0.4738,0.4261,0.1049,0.7459,0.3659,0.5904,0.3388,0.587,0.3111,0.5905,0.2747,0.6109,0.3934,0.5963,0.3452,0.656,0.3701,0.6539,0.3193,0.6527,0.2979,0.6464,0.2478,0.5892,0.3969,0.1572,0.2801,0.6244,0.1063,0.6,0.2099,0.6086,0.3558,0.4656,0.4718,0.3496,0.4742,0.3198,0.4398,0.3428,0.4146,0.3335,0.4504,0.3191,0.4288,0.3173,0.375,0.2722,0.4867,0.4524,0.4853,0.4726,0.2578,0.6855,0.4012,0.5448,0.4298,0.4514,0.4214,0.4663,0.2769,0.4679,0.4834,0.5004,0.3372,0.7171,0.2964,0.7068,0.1693,0.8062,0.4476,0.6974,0.3924,0.6461,0.3545,0.3032,0.0673,0.2699,0.4427,0.4272,0.4571,0.4152,0.382,0.3053,0.3924,0.3058,0.2771,0.7281,0.4226,0.4368,0.3859,0.7186,0.3831,0.7442,0.3314,0.8803,0.2299,0.768,0.3645,0.8109,0.2296,0.7005,0.1733,0.7213,0.4729,0.3338,0.4468,0.3315,0.4228,0.3261,0.4453,0.4199,0.3881,0.306,0.403,0.2935,0.4036,0.306,0.46,0.4429,0.4312,0.3076,0.4522,0.3076,0.4754,0.3076,0.4658,0.2208,0.4723,0.2638,0.4731,0.2821,0.4731,0.2954,0.473,0.3047,0.4279,0.3047,0.4265,0.2965,0.4232,0.2882,0.4183,0.2799,0.3901,0.3604,0.014,0.44,0.4999,0.4199,0.4132,0.3046,0.4096,0.2982,0.4681,0.3985,0.4227,0.414,0.4631,0.4062,0.3721,0.5266,0.3346,0.5039,0.4117,0.453,0.2422,0.8523,0.2908,0.7986,0.3273,0.7435,0.3995,0.2511,0.4417,0.7383,0.4298,0.8122,0.4122,0.8911,0.289,0.601,0.2189,0.5646,0.4128,0.601,0.2571,0.6446,0.4277,0.562,0.4483,0.4631,0.1786,0.5424,0.2473,0.5428,0.2863,0.5323,0.3328,0.5393,0.3688,0.5528,0.399,0.5673,0.4764,0.5942,0.1892,0.4761,0.229,0.651,0.4907,0.4376,0.4047,0.5149,0.0195,0.5984,0.4262,0.5796,0.397,0.4512,0.2665,0.623,0.4391,0.481,0.0323,0.3556,0.4191,0.6128,0.4628,0.4943,0.239,0.2203,0.1982,0.1681,0.1076,0.4592,0.1836,0.2597,0.1344,0.6663,0.3858,0.1168,0.491,0.4206,0.3824,0.4914,0.1744,0.6023,0.3188,0.6038,0.3434,0.5994,0.3961,0.2898,0.1879,0.4115,0.431,0.0559,0.319,0.1017,0.2662,0.1303,0.5,0.8094,0.5,0.0455,0.3662,0.6012,0.3932,0.6045,0.4104,0.6089,0.195,0.6579,0.3887,0.6377,0.366,0.644,0.3434,0.6446,0.3188,0.6417,0.3014,0.6368,0.0581,0.6809,0.3014,0.6126,0.5,0.3816,0.4158,0.3758,0.4457,0.4339,0.4658,0.3794,0.4999,0.6485,0.2887,0.1801,0.3353,0.1472,0.4405,0.0976,0.1283,0.2081,0.4088,0.6261,0.4556,0.5482,0.4999,0.091,0.3754,0.0758,0.1142,0.385,0.4487,0.3047,0.448,0.2954,0.4471,0.2842,0.4448,0.2692,0.43,0.2332,0.4068,0.3143,0.4007,0.3189,0.3924,0.3223,0.3679,0.3361,0.2479,0.3987,0.4528,0.5792,0.4364,0.6401,0.4162,0.6313,0.4134,0.3076,0.228,0.3164,0.4683,0.6473,0.4114,0.1957,0.5,0.5302,0.4792,0.5573,0.5,0.5604,0.4321,0.5064,0.4999,0.1331,0.4999,0.1783,0.4565,0.1808,0.3445,0.2546,0.3789,0.426,0.3743,0.2198,0.3197,0.4293,0.3572,0.3957,0.2953,0.3784,0.4477,0.1375,0.411,0.4913,0.314,0.2247,0.3541,0.1874,0.3245,0.296,0.1891,0.3537,0.2798,0.2853,0.1338,0.3173,0.3368,0.3553,0.4299,0.5335,0.4555,0.4514,0.4371,0.4411,0.4673,0.4701,0.4147,0.6648,0.377,0.6772,0.3441,0.6798,0.3129,0.6777,0.2835,0.6668,0.2412,0.6172,0.103,0.5312,0.2676,0.5754,0.2979,0.5668,0.3334,0.5661,0.3664,0.5739,0.396,0.5833,0.4201,0.5898,0.0076,0.5192,0.4329,0.4305,0.4586,0.5209,0.4735,0.4543,0.4761,0.4362,0.4685,0.4449,0.434,0.4176,0.4835,0.437,0.4825,0.4222,0.4264,0.6102,0.439,0.6035,0.4501,0.5996,0.2897,0.6317,0.2767,0.6366,0.5179,0.5281,0.7103,0.6192,0.5262,0.4261,0.8951,0.7459,0.6341,0.5904,0.6612,0.587,0.6889,0.5905,0.7253,0.6109,0.6066,0.5963,0.6548,0.656,0.6299,0.6539,0.6807,0.6527,0.7021,0.6464,0.7522,0.5892,0.6029,0.1571,0.7199,0.6244,0.8937,0.6,0.7901,0.6086,0.644,0.4655,0.5282,0.3496,0.5259,0.3198,0.5602,0.3428,0.5854,0.3335,0.5496,0.3191,0.5712,0.3173,0.6249,0.2719,0.5131,0.4527,0.5151,0.4727,0.7422,0.6855,0.5986,0.545,0.5703,0.4514,0.5786,0.4664,0.7231,0.4679,0.5164,0.5004,0.6628,0.7171,0.7036,0.7067,0.8307,0.8062,0.5524,0.6974,0.6076,0.6461,0.6454,0.3033,0.9327,0.2699,0.5573,0.4272,0.5429,0.4152,0.618,0.3053,0.6076,0.3058,0.7229,0.728,0.5774,0.4368,0.6141,0.7186,0.6169,0.7441,0.6685,0.8801,0.7701,0.768,0.6355,0.8108,0.7704,0.7004,0.8267,0.7212,0.5271,0.3338,0.5532,0.3315,0.5772,0.3261,0.5547,0.4199,0.6119,0.306,0.597,0.2935,0.5964,0.306,0.54,0.4429,0.5688,0.3076,0.5478,0.3076,0.5246,0.3076,0.5341,0.2209,0.5277,0.2638,0.5269,0.2821,0.5269,0.2954,0.527,0.3047,0.5721,0.3047,0.5735,0.2965,0.5768,0.2882,0.5817,0.2799,0.6099,0.3601,0.986,0.44,0.5868,0.3046,0.5904,0.2982,0.5319,0.3985,0.5773,0.4141,0.5369,0.4062,0.6275,0.5266,0.6656,0.504,0.5884,0.4531,0.7578,0.8523,0.7093,0.7985,0.6727,0.7434,0.6004,0.251,0.5583,0.7383,0.5703,0.8121,0.5882,0.891,0.711,0.601,0.7811,0.5646,0.5872,0.6011,0.7429,0.6446,0.5722,0.5623,0.5519,0.4634,0.8214,0.5424,0.7527,0.5428,0.7138,0.5324,0.6671,0.5393,0.6311,0.5528,0.6009,0.5675,0.5235,0.5944,0.8107,0.4761,0.771,0.651,0.5091,0.4373,0.5953,0.515,0.9805,0.5984,0.5735,0.58,0.603,0.4513,0.7335,0.623,0.5606,0.481,0.9677,0.3556,0.581,0.6128,0.5377,0.4946,0.761,0.2202,0.8018,0.1681,0.8924,0.4592,0.8164,0.2597,0.8656,0.6663,0.6141,0.1168,0.509,0.4206,0.6179,0.4917,0.8256,0.6023,0.6812,0.6038,0.6566,0.5994,0.6039,0.2898,0.8121,0.4115,0.568,0.0554,0.681,0.1017,0.7338,0.1303,0.6338,0.6012,0.6068,0.6045,0.5897,0.6089,0.805,0.6579,0.6113,0.6377,0.634,0.644,0.6566,0.6446,0.6812,0.6417,0.6986,0.6368,0.9419,0.6809,0.6986,0.6126,0.5842,0.3759,0.5543,0.4339,0.5342,0.3794,0.7112,0.18,0.6646,0.1471,0.5591,0.0974,0.8717,0.2081,0.5912,0.6261,0.5443,0.5484,0.6246,0.0758,0.8858,0.385,0.5513,0.3047,0.552,0.2954,0.5529,0.2842,0.5552,0.2692,0.5699,0.233,0.5932,0.3143,0.5993,0.3189,0.6076,0.3223,0.6319,0.3365,0.752,0.3987,0.5472,0.5796,0.5635,0.6402,0.5838,0.6313,0.5866,0.3076,0.7719,0.3164,0.5316,0.6475,0.5884,0.1956,0.5208,0.5574,0.568,0.5065,0.5433,0.1807,0.6553,0.2545,0.621,0.426,0.6256,0.2197,0.6802,0.4293,0.6428,0.3957,0.7047,0.3785,0.552,0.1374,0.5891,0.4914,0.6859,0.2246,0.6457,0.1874,0.6753,0.296,0.8109,0.3537,0.7201,0.2853,0.8662,0.3173,0.6632,0.3554,0.5701,0.5337,0.5446,0.4516,0.5628,0.4412,0.532,0.4699,0.5853,0.6648,0.623,0.6772,0.6559,0.6798,0.6871,0.6777,0.7165,0.6668,0.7588,0.6172,0.897,0.5312,0.7324,0.5755,0.7021,0.5668,0.6665,0.5661,0.6335,0.5739,0.6039,0.5834,0.5797,0.5901,0.9924,0.5192,0.5672,0.4306,0.5414,0.5211,0.5266,0.4539,0.5239,0.4362,0.5315,0.4449,0.566,0.4177,0.5163,0.4369,0.5175,0.4221,0.5736,0.6102,0.5607,0.6047,0.5498,0.6002,0.7103,0.6317,0.7233,0.6366];
+const FACE_TRI=[173,155,133,246,33,7,382,398,362,263,466,249,308,415,324,78,95,191,356,389,264,127,34,162,368,264,389,139,162,34,267,0,302,37,72,0,11,302,0,11,0,72,349,451,350,120,121,231,452,350,451,232,231,121,267,302,269,37,39,72,303,269,302,73,72,39,357,343,350,128,121,114,277,350,343,47,114,121,350,452,357,121,128,232,453,357,452,233,232,128,299,333,297,69,67,104,332,297,333,103,104,67,175,152,396,175,171,152,377,396,152,148,152,171,381,384,382,154,155,157,398,382,384,173,157,155,280,347,330,50,101,118,348,330,347,119,118,101,269,303,270,39,40,73,304,270,303,74,73,40,9,336,151,9,151,107,337,151,336,108,107,151,344,278,360,115,131,48,279,360,278,49,48,131,262,431,418,32,194,211,424,418,431,204,211,194,304,408,270,74,40,184,409,270,408,185,184,40,272,310,407,42,183,80,415,407,310,191,80,183,322,270,410,92,186,40,409,410,270,185,40,186,347,449,348,118,119,229,450,348,449,230,229,119,434,432,430,214,210,212,422,430,432,202,212,210,313,314,18,83,18,84,17,18,314,17,84,18,307,375,306,77,76,146,291,306,375,61,146,76,259,387,260,29,30,160,388,260,387,161,160,30,286,414,384,56,157,190,398,384,414,173,190,157,418,424,406,194,182,204,335,406,424,106,204,182,367,416,364,138,135,192,434,364,416,214,192,135,391,423,327,165,98,203,358,327,423,129,203,98,298,301,284,68,54,71,251,284,301,21,71,54,4,275,5,4,5,45,281,5,275,51,45,5,254,373,253,24,23,144,374,253,373,145,144,23,320,321,307,90,77,91,375,307,321,146,91,77,280,425,411,50,187,205,427,411,425,207,205,187,421,313,200,201,200,83,18,200,313,18,83,200,335,321,406,106,182,91,405,406,321,181,91,182,405,321,404,181,180,91,320,404,321,90,91,180,17,314,16,17,16,84,315,16,314,85,84,16,425,266,426,205,206,36,423,426,266,203,36,206,369,396,400,140,176,171,377,400,396,148,171,176,391,269,322,165,92,39,270,322,269,40,39,92,417,465,413,193,189,245,464,413,465,244,245,189,257,258,386,27,159,28,385,386,258,158,28,159,260,388,467,30,247,161,466,467,388,246,161,247,248,456,419,3,196,236,399,419,456,174,236,196,333,298,332,104,103,68,284,332,298,54,68,103,285,8,417,55,193,8,168,417,8,168,8,193,340,261,346,111,117,31,448,346,261,228,31,117,285,417,441,55,221,193,413,441,417,189,193,221,327,460,326,98,97,240,328,326,460,99,240,97,277,355,329,47,100,126,371,329,355,142,126,100,309,392,438,79,218,166,439,438,392,219,166,218,381,382,256,154,26,155,341,256,382,112,155,26,360,279,420,131,198,49,429,420,279,209,49,198,365,364,379,136,150,135,394,379,364,169,135,150,355,277,437,126,217,47,343,437,277,114,47,217,443,444,282,223,52,224,283,282,444,53,224,52,281,275,363,51,134,45,440,363,275,220,45,134,431,262,395,211,170,32,369,395,262,140,32,170,337,299,338,108,109,69,297,338,299,67,69,109,335,273,321,106,91,43,375,321,273,146,43,91,348,450,349,119,120,230,451,349,450,231,230,120,467,359,342,247,113,130,446,342,359,226,130,113,282,283,334,52,105,53,293,334,283,63,53,105,250,458,462,20,242,238,461,462,458,241,238,242,276,353,300,46,70,124,383,300,353,156,124,70,325,292,324,96,95,62,308,324,292,78,62,95,283,276,293,53,63,46,300,293,276,70,46,63,447,264,345,227,116,34,372,345,264,143,34,116,352,345,346,123,117,116,340,346,345,111,116,117,1,19,274,1,44,19,354,274,19,125,19,44,248,281,456,3,236,51,363,456,281,134,51,236,425,426,427,205,207,206,436,427,426,216,206,207,380,381,252,153,22,154,256,252,381,26,154,22,391,393,269,165,39,167,267,269,393,37,167,39,199,428,200,199,200,208,421,200,428,201,208,200,330,329,266,101,36,100,371,266,329,142,100,36,422,432,273,202,43,212,287,273,432,57,212,43,290,250,328,60,99,20,462,328,250,242,20,99,258,286,385,28,158,56,384,385,286,157,56,158,342,446,353,113,124,226,265,353,446,35,226,124,257,386,259,27,29,159,387,259,386,160,159,29,430,422,431,210,211,202,424,431,422,204,202,211,445,342,276,225,46,113,353,276,342,124,113,46,424,422,335,204,106,202,273,335,422,43,202,106,306,292,307,76,77,62,325,307,292,96,62,77,366,447,352,137,123,227,345,352,447,116,227,123,302,268,303,72,73,38,271,303,268,41,38,73,371,358,266,142,36,129,423,266,358,203,129,36,327,294,460,98,240,64,455,460,294,235,64,240,294,331,278,64,48,102,279,278,331,49,102,48,303,271,304,73,74,41,272,304,271,42,41,74,427,436,434,207,214,216,432,434,436,212,216,214,304,272,408,74,184,42,407,408,272,183,42,184,394,430,395,169,170,210,431,395,430,211,210,170,395,369,378,170,149,140,400,378,369,176,140,149,296,334,299,66,69,105,333,299,334,104,105,69,417,168,351,193,122,168,6,351,168,6,168,122,280,411,352,50,123,187,376,352,411,147,187,123,319,320,325,89,96,90,307,325,320,77,90,96,285,295,336,55,107,65,296,336,295,66,65,107,404,320,403,180,179,90,319,403,320,89,90,179,330,348,329,101,100,119,349,329,348,120,119,100,334,293,333,105,104,63,298,333,293,68,63,104,323,454,366,93,137,234,447,366,454,227,234,137,16,315,15,16,15,85,316,15,315,86,85,15,429,279,358,209,129,49,331,358,279,102,49,129,15,316,14,15,14,86,317,14,316,87,86,14,8,285,9,8,9,55,336,9,285,107,55,9,329,349,277,100,47,120,350,277,349,121,120,47,252,253,380,22,153,23,374,380,253,145,23,153,402,403,318,178,88,179,319,318,403,89,179,88,351,6,419,122,196,6,197,419,6,197,6,196,324,318,325,95,96,88,319,325,318,89,88,96,397,367,365,172,136,138,364,365,367,135,138,136,288,435,397,58,172,215,367,397,435,138,215,172,438,439,344,218,115,219,278,344,439,48,219,115,271,311,272,41,42,81,310,272,311,80,81,42,5,281,195,5,195,51,248,195,281,3,51,195,273,287,375,43,146,57,291,375,287,61,57,146,396,428,175,171,175,208,199,175,428,199,208,175,268,312,271,38,41,82,311,271,312,81,82,41,444,445,283,224,53,225,276,283,445,46,225,53,254,339,373,24,144,110,390,373,339,163,110,144,295,282,296,65,66,52,334,296,282,105,52,66,346,448,347,117,118,228,449,347,448,229,228,118,454,356,447,234,227,127,264,447,356,34,127,227,336,296,337,107,108,66,299,337,296,69,66,108,151,337,10,151,10,108,338,10,337,109,108,10,278,439,294,48,64,219,455,294,439,235,219,64,407,415,292,183,62,191,308,292,415,78,191,62,358,371,429,129,209,142,355,429,371,126,142,209,345,372,340,116,111,143,265,340,372,35,143,111,388,390,466,161,246,163,249,466,390,7,163,246,352,346,280,123,50,117,347,280,346,118,117,50,295,442,282,65,52,222,443,282,442,223,222,52,19,94,354,19,125,94,370,354,94,141,94,125,295,285,442,65,222,55,441,442,285,221,55,222,419,197,248,196,3,197,195,248,197,195,197,3,359,263,255,130,25,33,249,255,263,7,33,25,275,274,440,45,220,44,457,440,274,237,44,220,300,383,301,70,71,156,368,301,383,139,156,71,417,351,465,193,245,122,412,465,351,188,122,245,466,263,467,246,247,33,359,467,263,130,33,247,389,251,368,162,139,21,301,368,251,71,21,139,374,386,380,145,153,159,385,380,386,158,159,153,379,394,378,150,149,169,395,378,394,170,169,149,351,419,412,122,188,196,399,412,419,174,196,188,426,322,436,206,216,92,410,436,322,186,92,216,387,373,388,160,161,144,390,388,373,163,144,161,393,326,164,167,164,97,2,164,326,2,97,164,354,370,461,125,241,141,462,461,370,242,141,241,0,267,164,0,164,37,393,164,267,167,37,164,11,12,302,11,72,12,268,302,12,38,12,72,386,374,387,159,160,145,373,387,374,144,145,160,12,13,268,12,38,13,312,268,13,82,13,38,293,300,298,63,68,70,301,298,300,71,70,68,340,265,261,111,31,35,446,261,265,226,35,31,380,385,381,153,154,158,384,381,385,157,158,154,280,330,425,50,205,101,266,425,330,36,101,205,423,391,426,203,206,165,322,426,391,92,165,206,429,355,420,209,198,126,437,420,355,217,126,198,391,327,393,165,167,98,326,393,327,97,98,167,457,438,440,237,220,218,344,440,438,115,218,220,382,362,341,155,112,133,463,341,362,243,133,112,457,461,459,237,239,241,458,459,461,238,241,239,434,430,364,214,135,210,394,364,430,169,210,135,414,463,398,190,173,243,362,398,463,133,243,173,262,428,369,32,140,208,396,369,428,171,208,140,457,274,461,237,241,44,354,461,274,125,44,241,316,403,317,86,87,179,402,317,403,178,179,87,315,404,316,85,86,180,403,316,404,179,180,86,314,405,315,84,85,181,404,315,405,180,181,85,313,406,314,83,84,182,405,314,406,181,182,84,418,406,421,194,201,182,313,421,406,83,182,201,366,401,323,137,93,177,361,323,401,132,177,93,408,407,306,184,76,183,292,306,407,62,183,76,408,306,409,184,185,76,291,409,306,61,76,185,410,409,287,186,57,185,291,287,409,61,185,57,436,410,432,216,212,186,287,432,410,57,186,212,434,416,427,214,207,192,411,427,416,187,192,207,264,368,372,34,143,139,383,372,368,156,139,143,457,459,438,237,218,239,309,438,459,79,239,218,352,376,366,123,137,147,401,366,376,177,147,137,4,1,275,4,45,1,274,275,1,44,1,45,428,262,421,208,201,32,418,421,262,194,32,201,327,358,294,98,64,129,331,294,358,102,129,64,367,435,416,138,192,215,433,416,435,213,215,192,455,439,289,235,59,219,392,289,439,166,219,59,328,462,326,99,97,242,370,326,462,141,242,97,326,370,2,97,2,141,94,2,370,94,141,2,460,455,305,240,75,235,289,305,455,59,235,75,448,339,449,228,229,110,254,449,339,24,110,229,261,446,255,31,25,226,359,255,446,130,226,25,449,254,450,229,230,24,253,450,254,23,24,230,450,253,451,230,231,23,252,451,253,22,23,231,451,252,452,231,232,22,256,452,252,26,22,232,256,341,452,26,232,112,453,452,341,233,112,232,413,464,414,189,190,244,463,414,464,243,244,190,441,413,286,221,56,189,414,286,413,190,189,56,441,286,442,221,222,56,258,442,286,28,56,222,442,258,443,222,223,28,257,443,258,27,28,223,444,443,259,224,29,223,257,259,443,27,223,29,259,260,444,29,224,30,445,444,260,225,30,224,260,467,445,30,225,247,342,445,467,113,247,225,250,309,458,20,238,79,459,458,309,239,79,238,290,305,392,60,166,75,289,392,305,59,75,166,460,305,328,240,99,75,290,328,305,60,75,99,376,433,401,147,177,213,435,401,433,215,213,177,250,290,309,20,79,60,392,309,290,166,60,79,411,416,376,187,147,192,433,376,416,213,192,147,341,463,453,112,233,243,464,453,463,244,243,233,453,464,357,233,128,244,465,357,464,245,244,128,412,343,465,188,245,114,357,465,343,128,114,245,437,343,399,217,174,114,412,399,343,188,114,174,363,440,360,134,131,220,344,360,440,115,220,131,456,420,399,236,174,198,437,399,420,217,198,174,456,363,420,236,198,134,360,420,363,131,134,198,361,401,288,132,58,177,435,288,401,215,177,58,353,265,383,124,156,35,372,383,265,143,35,156,255,249,339,25,110,7,390,339,249,163,7,110,261,255,448,31,228,25,339,448,255,110,25,228,14,317,13,14,13,87,312,13,317,82,87,13,317,402,312,87,82,178,311,312,402,81,178,82,402,318,311,178,81,88,310,311,318,80,88,81,318,324,310,88,80,95,415,310,324,191,95,80];
+
+</script>
+<script type="module">
+const $=id=>document.getElementById(id);
+const V=$('v'), C=$('out');
+const gl=C.getContext('webgl2',{preserveDrawingBuffer:true,premultipliedAlpha:false});
+
+/* ================= filters ================= */
+const FILTERS=[
+  {id:'none',e:'🙂',n:'Original'},
+  {id:'buzz',e:'💈',n:'Buzzcut',hair:'buzz'},
+  {id:'blonde',e:'👱',n:'Blonde',hair:[.95,.82,.52],lift:[.32,1.15]},
+  {id:'pink',e:'🩷',n:'Pink',hair:[1,.42,.68],lift:[.18,1.1]},
+  {id:'blue',e:'💙',n:'Blue',hair:[.25,.5,1],lift:[.1,1.05]},
+  {id:'silver',e:'🤍',n:'Silver',hair:[.86,.87,.9],lift:[.4,1.05]},
+  {id:'ginger',e:'🧡',n:'Ginger',hair:[.85,.36,.14],lift:[.12,1.05]},
+  {id:'beard',e:'🧔',n:'Beard',paint:'beard'},
+  {id:'freckles',e:'✨',n:'Freckles',paint:'freckles'},
+  {id:'skull',e:'💀',n:'Skull',paint:'skull'},
+  {id:'zombie',e:'🧟',n:'Zombie',paint:'zombie',iris:[.85,.9,.82]},
+  {id:'vampire',e:'🧛',n:'Vampire',paint:'vampire',iris:[1,.08,.08]},
+  {id:'ro',e:'🇷🇴',n:'Romania',paint:'flag',flag:'ro'},
+  {id:'pt',e:'🇵🇹',n:'Portugal',paint:'flag',flag:'pt'},
+  {id:'fr',e:'🇫🇷',n:'France',paint:'flag',flag:'fr'},
+];
+let cur=FILTERS[1];
+
+/* ---------- painting textures in face-map space (1024x1024, u right, v up) ---------- */
+const S=1024;
+const UV=i=>[FACE_UV[i*2]*S,(1-FACE_UV[i*2+1])*S];
+const OVAL=[10,338,297,332,284,251,389,356,454,323,361,288,397,365,379,378,400,377,152,148,176,149,150,136,172,58,132,93,234,127,162,21,54,103,67,109];
+const EYE_R=[33,7,163,144,145,153,154,155,133,173,157,158,159,160,161,246];
+const EYE_L=[263,249,390,373,374,380,381,382,362,398,384,385,386,387,388,466];
+const LIPS_O=[61,146,91,181,84,17,314,405,321,375,291,409,270,269,267,0,37,39,40,185];
+const LIPS_I=[78,95,88,178,87,14,317,402,318,324,308,415,310,311,312,13,82,81,80,191];
+function canvas(){ const c=document.createElement('canvas'); c.width=c.height=S; return c; }
+function path(x,ids){ x.beginPath(); ids.forEach((i,k)=>{ const [a,b]=UV(i); k?x.lineTo(a,b):x.moveTo(a,b); }); x.closePath(); }
+function center(ids){ let a=0,b=0; for(const i of ids){ const p=UV(i); a+=p[0]; b+=p[1]; } return [a/ids.length,b/ids.length]; }
+function rand(seed){ let s=seed; return ()=>{ s=(s*16807)%2147483647; return s/2147483647; }; }
+function ovalMask(blur=14){ const c=canvas(), x=c.getContext('2d'); x.filter=`blur(${blur}px)`; x.fillStyle='#fff'; path(x,OVAL); x.fill(); return c; }
+function clipTo(x,mask){ x.globalCompositeOperation='destination-in'; x.filter='none'; x.drawImage(mask,0,0); x.globalCompositeOperation='source-over'; }
+function holeEyesMouth(x,blur=3){ x.globalCompositeOperation='destination-out'; x.filter=`blur(${blur}px)`; x.fillStyle='#000'; path(x,EYE_R); x.fill(); path(x,EYE_L); x.fill(); path(x,LIPS_I); x.fill(); x.globalCompositeOperation='source-over'; x.filter='none'; }
+function veins(x,r,sx,sy,len,ang){ x.beginPath(); x.moveTo(sx,sy); let a=ang, px=sx, py=sy; for(let i=0;i<len;i++){ a+=(r()-.5)*.9; px+=Math.cos(a)*9; py+=Math.sin(a)*9; x.lineTo(px,py); if(r()<.12) veins(x,r,px,py,len*.5|0,a+(r()-.5)*1.6); } x.stroke(); }
+function stubble(x,region,r,count,col,size){ const m=region.getContext('2d').getImageData(0,0,S,S).data; x.fillStyle=col;
+  for(let i=0;i<count;i++){ const px=r()*S, py=r()*S, a=m[((py|0)*S+(px|0))*4+3]/255; if(r()>a) continue; x.globalAlpha=.35+.5*r()*a; const l=size*(0.6+r()*.9), an=Math.PI/2+(r()-.5)*.8;
+    x.beginPath(); x.moveTo(px,py); x.lineTo(px+Math.cos(an)*l*.5,py+Math.sin(an)*l); x.lineWidth=size*.45; x.strokeStyle=col; x.stroke(); } x.globalAlpha=1; }
+
+const PAINTS={
+  skull(){ const A=null, B=canvas(), Cc=canvas(), b=B.getContext('2d'), c=Cc.getContext('2d');
+    c.filter='blur(10px)'; c.fillStyle='rgba(243,240,233,.95)'; path(c,OVAL); c.fill();
+    c.filter='blur(14px)'; c.fillStyle='rgba(120,118,115,.55)';
+    for(const i of [205,425]){ const [px,py]=UV(i); c.beginPath(); c.ellipse(px,py+40,70,55,0,0,7); c.fill(); }
+    c.filter='blur(9px)'; c.fillStyle='#0d0d0d';
+    for(const E of [EYE_R,EYE_L]){ const [ex,ey]=center(E); c.beginPath(); c.ellipse(ex,ey+6,105,95,0,0,7); c.fill(); }
+    c.filter='blur(3px)'; c.beginPath(); { const t=UV(4),l=UV(98),r=UV(327),bt=UV(2); c.moveTo(t[0],t[1]-20); c.quadraticCurveTo(l[0]-25,l[1],bt[0]-8,bt[1]+10); c.lineTo(bt[0]+8,bt[1]+10); c.quadraticCurveTo(r[0]+25,r[1],t[0],t[1]-20); } c.fill();
+    c.filter='blur(1px)'; c.strokeStyle='#111'; c.lineWidth=7; c.lineCap='round';
+    const L=UV(61), R=UV(291), my=(L[1]+R[1])/2, ext=60;
+    c.beginPath(); c.moveTo(L[0]-ext,my); c.lineTo(R[0]+ext,my); c.stroke();
+    for(let k=0;k<=12;k++){ const px=L[0]-ext+(R[0]-L[0]+2*ext)*k/12; c.beginPath(); c.moveTo(px,my-34); c.lineTo(px,my+34); c.stroke(); }
+    holeEyesMouth(c,2); clipTo(c,ovalMask(10));
+    return {B:null,C:Cc}; },
+  zombie(){ const A=canvas(), B=canvas(), Cc=canvas(), a=A.getContext('2d'), b=B.getContext('2d'), c=Cc.getContext('2d'), r=rand(7);
+    a.filter='blur(18px)'; a.fillStyle='rgba(126,150,116,.82)'; path(a,OVAL); a.fill(); clipTo(a,ovalMask(16));
+    b.filter='blur(22px)'; b.fillStyle='rgba(78,48,82,.85)'; for(const E of [EYE_R,EYE_L]){ const [ex,ey]=center(E); b.beginPath(); b.ellipse(ex,ey+14,95,72,0,0,7); b.fill(); }
+    b.filter='blur(1.2px)'; b.strokeStyle='rgba(58,70,110,.38)'; b.lineWidth=2.6; b.lineCap='round';
+    for(let k=0;k<9;k++){ const [sx,sy]=UV([54,284,103,332,127,356,58,288,109][k]); veins(b,r,sx,sy,22,Math.atan2(S*.55-sy,S*.5-sx)+(r()-.5)); }
+    b.filter='blur(6px)'; b.fillStyle='rgba(70,10,12,.9)'; { const [px,py]=UV(425); b.beginPath(); b.moveTo(px-50,py-10); for(let k=0;k<14;k++){ const an=k/14*Math.PI*2; b.lineTo(px+Math.cos(an)*(55+r()*25),py+Math.sin(an)*(30+r()*18)); } b.fill(); }
+    c.filter='blur(2px)'; c.fillStyle='rgba(150,12,18,.85)'; { const [px,py]=UV(425); c.beginPath(); c.ellipse(px,py,40,14,.2,0,7); c.fill(); }
+    { const [px,py]=UV(291); c.beginPath(); c.moveTo(px-6,py); c.quadraticCurveTo(px+8,py+60,px+2,py+120); c.quadraticCurveTo(px-6,py+132,px-10,py+118); c.quadraticCurveTo(px-14,py+60,px-6,py); c.fill(); }
+    c.filter='blur(4px)'; c.fillStyle='rgba(60,55,58,.55)'; path(c,LIPS_O); c.fill();
+    for(const X of [a,b,c]) holeEyesMouth(X,2); clipTo(b,ovalMask(14)); clipTo(c,ovalMask(10));
+    return {A,B,C:Cc,lift:[.04,.92]}; },
+  vampire(){ const A=canvas(), B=canvas(), Cc=canvas(), a=A.getContext('2d'), b=B.getContext('2d'), c=Cc.getContext('2d');
+    a.filter='blur(18px)'; a.fillStyle='rgba(236,234,246,.8)'; path(a,OVAL); a.fill(); clipTo(a,ovalMask(16));
+    b.filter='blur(24px)'; b.fillStyle='rgba(120,90,120,.7)'; for(const E of [EYE_R,EYE_L]){ const [ex,ey]=center(E); b.beginPath(); b.ellipse(ex,ey+16,90,60,0,0,7); b.fill(); }
+    b.fillStyle='rgba(140,130,150,.5)'; for(const i of [205,425]){ const [px,py]=UV(i); b.beginPath(); b.ellipse(px,py+30,60,40,0,0,7); b.fill(); }
+    c.filter='blur(2px)'; c.fillStyle='rgba(92,6,20,.92)'; path(c,LIPS_O); c.fill();
+    c.fillStyle='rgba(150,10,22,.95)'; for(const i of [61,291]){ const [px,py]=UV(i); c.beginPath(); c.moveTo(px-5,py); c.quadraticCurveTo(px+3,py+55,px,py+95); c.quadraticCurveTo(px-6,py+104,px-9,py+92); c.quadraticCurveTo(px-11,py+50,px-5,py); c.fill(); }
+    for(const X of [a,b,c]) holeEyesMouth(X,2); clipTo(b,ovalMask(14));
+    return {A,B,C:Cc,lift:[.22,.85]}; },
+  beard(){ const B=canvas(), b=B.getContext('2d'), r=rand(11);
+    const reg=canvas(), x=reg.getContext('2d');
+    const f=u=>{ const d=Math.abs(u-.5); return d<.08 ? .405 : d<.28 ? .405-(d-.08)*.42 : .32+(d-.28)*.95; };   // top edge of the beard in face-map space
+    x.filter='blur(14px)'; x.fillStyle='#fff'; x.beginPath(); x.moveTo(0,S); for(let k=0;k<=60;k++){ const u=k/60; x.lineTo(u*S,(1-f(u))*S); } x.lineTo(S,S); x.closePath(); x.fill();
+    clipTo(x,ovalMask(8)); x.globalCompositeOperation='destination-out'; x.filter='blur(4px)'; path(x,LIPS_O); x.fill(); x.globalCompositeOperation='source-over';
+    b.globalAlpha=.4; b.drawImage(reg,0,0); b.globalCompositeOperation='source-in'; b.fillStyle='rgb(150,140,132)'; b.fillRect(0,0,S,S); b.globalCompositeOperation='source-over'; b.globalAlpha=1;
+    stubble(b,reg,r,90000,'#1d140e',5);
+    return {B}; },
+  freckles(){ const B=canvas(), b=B.getContext('2d'), r=rand(3);
+    const reg=canvas(), x=reg.getContext('2d'); x.filter='blur(30px)'; x.fillStyle='#fff';
+    for(const i of [205,425,4,195]){ const [px,py]=UV(i); x.beginPath(); x.ellipse(px,py-25,i===4||i===195?60:120,75,0,0,7); x.fill(); }
+    const m=x.getImageData(0,0,S,S).data;
+    for(let k=0;k<9000;k++){ const px=r()*S, py=r()*S, a=m[((py|0)*S+(px|0))*4+3]/255; if(r()>a*.9) continue;
+      b.fillStyle=`rgba(${120+r()*30|0},${70+r()*20|0},${40+r()*15|0},${.25+r()*.4})`; b.beginPath(); b.ellipse(px,py,2+r()*3.5,1.6+r()*3,r()*3,0,7); b.fill(); }
+    holeEyesMouth(b,1); return {B}; },
+  flag(id){ const Cc=canvas(), c=Cc.getContext('2d');
+    const cols={ro:[['#002B7F',1],['#FCD116',1],['#CE1126',1]], fr:[['#0055A4',1],['#FFFFFF',1],['#EF4135',1]], pt:[['#046A38',2],['#DA291C',3]]}[id];
+    for(const i of [205,425]){ const [px,py]=UV(i), w=150, h=100; c.save(); c.translate(px,py+6); c.filter='blur(2.5px)';
+      c.beginPath(); c.roundRect(-w/2,-h/2,w,h,18); c.clip();
+      const tot=cols.reduce((s,q)=>s+q[1],0); let ox=-w/2; for(const [col,k] of cols){ c.fillStyle=col; c.fillRect(ox,-h/2,w*k/tot+1,h); ox+=w*k/tot; }
+      if(id==='pt'){ c.fillStyle='#FFE000'; c.beginPath(); c.arc(-w/2+w*2/5,0,26,0,7); c.fill(); c.fillStyle='#DA291C'; c.beginPath(); c.roundRect(-w/2+w*2/5-12,-14,24,26,8); c.fill(); }
+      c.restore(); }
+    c.globalAlpha=1; return {C:Cc}; },
+};
+
+/* ================= WebGL ================= */
+const VS_FULL=`#version 300 es
+in vec2 p; out vec2 s; void main(){ s=vec2(p.x*.5+.5, .5-p.y*.5); gl_Position=vec4(p,0,1); }`;
+const VS_MESH=`#version 300 es
+in vec2 pos; in vec2 uv; uniform float uMirror; out vec2 vuv; out vec2 s;
+void main(){ float x=uMirror>.5?1.-pos.x:pos.x; s=vec2(x,pos.y); vuv=vec2(uv.x,1.-uv.y); gl_Position=vec4(x*2.-1., 1.-pos.y*2., 0, 1); }`;
+const COMMON=`#version 300 es
+precision highp float;
+uniform sampler2D uVideo, uHair, uFill; uniform float uMirror; uniform vec2 uRes;
+uniform int uHairMode; uniform vec3 uHairCol; uniform vec2 uLift; uniform vec4 uScalp; uniform float uScalpRot; uniform vec3 uSkin;
+uniform vec4 uIris[2]; uniform vec3 uIrisCol;
+float lum(vec3 c){ return dot(c,vec3(.299,.587,.114)); }
+vec3 setLum(vec3 c,float l){ float d=l-lum(c); c+=d; float L=lum(c), n=min(min(c.r,c.g),c.b), x=max(max(c.r,c.g),c.b);
+  if(n<0.) c=L+(c-L)*L/max(L-n,1e-4); if(x>1.) c=L+(c-L)*(1.-L)/max(x-L,1e-4); return c; }
+float hash(vec2 p){ return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453); }
+vec2 vid(vec2 s){ return vec2(uMirror>.5?1.-s.x:s.x, s.y); }
+vec3 effects(vec3 v, vec2 t){
+  vec2 px=t*uRes;
+  if(uHairMode==1){ float h=texture(uHair,t).r; float l=lum(v); v=mix(v, setLum(uHairCol, clamp(uLift.x+l*uLift.y,0.,1.)), h*.93); }
+  if(uHairMode==2){ float h=texture(uHair,t).r;
+    vec2 d=px-uScalp.xy; float cs=cos(-uScalpRot), sn=sin(-uScalpRot); d=vec2(d.x*cs-d.y*sn, d.x*sn+d.y*cs)/uScalp.zw;
+    float r=length(d), inside=1.-smoothstep(.9,1.02,r);
+    float dome=.62+.42*sqrt(max(0.,1.-r*r)) - .12*clamp(-d.y,0.,1.);
+    float n=hash(floor(px*.75)); float stub=step(.45,n)*(.25+.35*hash(floor(px*.75)+3.1));
+    vec3 scalp=uSkin*dome; scalp=mix(scalp, scalp*vec3(.38,.33,.3), stub*.55);
+    vec3 fill=texture(uFill,t).rgb;
+    v=mix(v, mix(fill,scalp,inside), h); }
+  for(int i=0;i<2;i++){ if(uIris[i].z>0.){ float dd=distance(px,uIris[i].xy)/uIris[i].z; float m=1.-smoothstep(.7,1.,dd); float pupil=1.-smoothstep(.28,.4,dd);
+    vec3 col=setLum(uIrisCol, clamp(lum(v)*1.3+.12,0.,1.)); col=mix(col,vec3(.03),pupil*.85); v=mix(v,col,m*.9*uIris[i].w); } }
+  return v; }
+`;
+const FS_FULL=COMMON+`in vec2 s; uniform int uRaw; out vec4 o; void main(){ vec2 t=vid(s); vec3 v=texture(uVideo,t).rgb; if(uRaw==0) v=effects(v,t); o=vec4(v,1); }`;
+const FS_MESH=COMMON+`in vec2 vuv; in vec2 s; uniform sampler2D uA,uB,uC; uniform vec2 uALift; out vec4 o;
+void main(){ vec2 t=vid(s); vec3 v0=texture(uVideo,t).rgb; vec3 v=v0; float l=lum(v0);
+  vec4 a=texture(uA,vuv); v=mix(v, setLum(a.rgb, clamp(uALift.x+l*uALift.y,0.,1.)), a.a);
+  vec4 b=texture(uB,vuv); v=mix(v, v*b.rgb, b.a);
+  vec4 c=texture(uC,vuv); float sh=clamp(.38+l*.95,0.,1.2); v=mix(v, c.rgb*sh, c.a);
+  v=effects(v,t); o=vec4(v,1); }`;
+
+function sh(type,src){ const s=gl.createShader(type); gl.shaderSource(s,src); gl.compileShader(s); if(!gl.getShaderParameter(s,gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s)); return s; }
+function prog(vs,fs){ const p=gl.createProgram(); gl.attachShader(p,sh(gl.VERTEX_SHADER,vs)); gl.attachShader(p,sh(gl.FRAGMENT_SHADER,fs)); gl.linkProgram(p); if(!gl.getProgramParameter(p,gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p)); return p; }
+function tex(){ const t=gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D,t); for(const [k,v] of [[gl.TEXTURE_MIN_FILTER,gl.LINEAR],[gl.TEXTURE_MAG_FILTER,gl.LINEAR],[gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE],[gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE]]) gl.texParameteri(gl.TEXTURE_2D,k,v);
+  gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,1,1,0,gl.RGBA,gl.UNSIGNED_BYTE,new Uint8Array([0,0,0,0])); return t; }
+let PF, PM, tVideo, tHair, tFill, tA, tB, tC, quad, posBuf, uvBuf, idxBuf, vaoF, vaoM;
+function initGL(){
+  PF=prog(VS_FULL,FS_FULL); PM=prog(VS_MESH,FS_MESH);
+  [tVideo,tHair,tFill,tA,tB,tC]=[tex(),tex(),tex(),tex(),tex(),tex()];
+  vaoF=gl.createVertexArray(); gl.bindVertexArray(vaoF);
+  quad=gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER,quad); gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,3,-1,-1,3]),gl.STATIC_DRAW);
+  let loc=gl.getAttribLocation(PF,'p'); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc,2,gl.FLOAT,false,0,0);
+  vaoM=gl.createVertexArray(); gl.bindVertexArray(vaoM);
+  posBuf=gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER,posBuf); gl.bufferData(gl.ARRAY_BUFFER,468*8,gl.DYNAMIC_DRAW);
+  loc=gl.getAttribLocation(PM,'pos'); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc,2,gl.FLOAT,false,0,0);
+  uvBuf=gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER,uvBuf); gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(FACE_UV),gl.STATIC_DRAW);
+  loc=gl.getAttribLocation(PM,'uv'); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc,2,gl.FLOAT,false,0,0);
+  idxBuf=gl.createBuffer(); gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,idxBuf); gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,new Uint16Array(FACE_TRI),gl.STATIC_DRAW);
+  gl.bindVertexArray(null);
+}
+function upCanvas(t,c){ gl.bindTexture(gl.TEXTURE_2D,t); if(c){ gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL,false); gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,c); } else gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,1,1,0,gl.RGBA,gl.UNSIGNED_BYTE,new Uint8Array([0,0,0,0])); }
+
+/* ================= AI models ================= */
+let vision=null, faceLM=null, segm=null, segLoading=false;
+const MP='https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14';
+async function loadFace(){
+  vision=await import(MP+'/vision_bundle.mjs');
+  const files=await vision.FilesetResolver.forVisionTasks(MP+'/wasm');
+  const o=d=>({baseOptions:{modelAssetPath:'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task',delegate:d},runningMode:'VIDEO',numFaces:1});
+  try{ faceLM=await vision.FaceLandmarker.createFromOptions(files,o('GPU')); }catch(e){ faceLM=await vision.FaceLandmarker.createFromOptions(files,o('CPU')); }
+  window.__files=files;
+}
+async function loadSeg(){
+  if(segm||segLoading) return; segLoading=true; pill('Loading hair AI…');
+  const o=d=>({baseOptions:{modelAssetPath:'https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_multiclass_256x256/float32/latest/selfie_multiclass_256x256.tflite',delegate:d},runningMode:'VIDEO',outputCategoryMask:true,outputConfidenceMasks:false});
+  try{ segm=await vision.ImageSegmenter.createFromOptions(window.__files,o('GPU')); }catch(e){ try{ segm=await vision.ImageSegmenter.createFromOptions(window.__files,o('CPU')); }catch(e2){ pill('Hair AI failed to load'); } }
+  segLoading=false; pill('');
+}
+
+/* ================= per-frame work ================= */
+let facing='user', stream=null, lastT=-1, sm=null, seen=0, raw=false;
+const SW=320, SH=180, small=document.createElement('canvas'); small.width=SW; small.height=SH; const sx=small.getContext('2d',{willReadFrequently:true});
+const hairA=new Uint8Array(SW*SH), FW=160, FH=90, fillPix=new Uint8Array(FW*FH*4);
+let skin=[.78,.6,.5], scalp=null, irises=[[0,0,0,0],[0,0,0,0]], segBusy=false, segN=0;
+
+function smoothLM(p){
+  if(!sm){ sm=p.map(q=>({x:q.x,y:q.y})); return; }
+  let mv=0; for(let i=0;i<p.length;i+=12) mv=Math.max(mv,Math.hypot(p[i].x-sm[i].x,p[i].y-sm[i].y));
+  const a=Math.min(.95,.35+mv*40);
+  for(let i=0;i<p.length;i++){ sm[i].x+=(p[i].x-sm[i].x)*a; sm[i].y+=(p[i].y-sm[i].y)*a; }
+}
+function pushPull(rgb,known,w,h){
+  const L=[{w,h,c:rgb,a:known}];
+  while(L.at(-1).w>1||L.at(-1).h>1){ const p=L.at(-1), nw=Math.max(1,Math.ceil(p.w/2)), nh=Math.max(1,Math.ceil(p.h/2)), c=new Float32Array(nw*nh*3), a=new Float32Array(nw*nh);
+    for(let y=0;y<p.h;y++) for(let x=0;x<p.w;x++){ const i=y*p.w+x, j=(y>>1)*nw+(x>>1), wa=p.a[i]; a[j]+=wa; c[j*3]+=p.c[i*3]*wa; c[j*3+1]+=p.c[i*3+1]*wa; c[j*3+2]+=p.c[i*3+2]*wa; }
+    for(let j=0;j<nw*nh;j++){ const s=a[j]; if(s>0){ c[j*3]/=s; c[j*3+1]/=s; c[j*3+2]/=s; } a[j]=Math.min(1,s); }
+    L.push({w:nw,h:nh,c,a}); }
+  for(let k=L.length-2;k>=0;k--){ const p=L[k], q=L[k+1];
+    for(let y=0;y<p.h;y++) for(let x=0;x<p.w;x++){ const i=y*p.w+x, wa=p.a[i]; if(wa>=1) continue;
+      const fx=Math.min(q.w-1,Math.max(0,(x-.5)/2)), fy=Math.min(q.h-1,Math.max(0,(y-.5)/2)), x0=fx|0, y0=fy|0, x1=Math.min(q.w-1,x0+1), y1=Math.min(q.h-1,y0+1), tx=fx-x0, ty=fy-y0;
+      for(let ch=0;ch<3;ch++){ const v=(q.c[(y0*q.w+x0)*3+ch]*(1-tx)+q.c[(y0*q.w+x1)*3+ch]*tx)*(1-ty)+(q.c[(y1*q.w+x0)*3+ch]*(1-tx)+q.c[(y1*q.w+x1)*3+ch]*tx)*ty;
+        p.c[i*3+ch]=p.c[i*3+ch]*wa+v*(1-wa); }
+      p.a[i]=1; } }
+  return L[0].c;
+}
+function runSeg(now){
+  if(!segm||segBusy) return; segBusy=true;
+  try{
+    const r=segm.segmentForVideo(V,now); const m=r.categoryMask; const mw=m.width, mh=m.height, d=m.getAsUint8Array();
+    for(let y=0;y<SH;y++){ const yy=Math.min(mh-1,(y+.5)*mh/SH|0); for(let x=0;x<SW;x++){ const xx=Math.min(mw-1,(x+.5)*mw/SW|0); hairA[y*SW+x]=d[yy*mw+xx]===1?255:0; } }
+    let bg=null;
+    if(cur.hair==='buzz'){
+      bg=new Float32Array(FW*FH); for(let y=0;y<FH;y++){ const yy=Math.min(mh-1,(y+.5)*mh/FH|0); for(let x=0;x<FW;x++){ const xx=Math.min(mw-1,(x+.5)*mw/FW|0); bg[y*FW+x]=d[yy*mw+xx]===0?1:0; } }
+    }
+    m.close&&m.close(); r.close&&r.close();
+    gl.bindTexture(gl.TEXTURE_2D,tHair); gl.pixelStorei(gl.UNPACK_ALIGNMENT,1); gl.texImage2D(gl.TEXTURE_2D,0,gl.R8,SW,SH,0,gl.RED,gl.UNSIGNED_BYTE,hairA);
+    if(bg){
+      sx.drawImage(V,0,0,FW,FH); const px=sx.getImageData(0,0,FW,FH).data, rgb=new Float32Array(FW*FH*3);
+      for(let i=0;i<FW*FH;i++){ rgb[i*3]=px[i*4]; rgb[i*3+1]=px[i*4+1]; rgb[i*3+2]=px[i*4+2]; }
+      const f=pushPull(rgb,bg,FW,FH); for(let i=0;i<FW*FH;i++){ fillPix[i*4]=f[i*3]; fillPix[i*4+1]=f[i*3+1]; fillPix[i*4+2]=f[i*3+2]; fillPix[i*4+3]=255; }
+      gl.bindTexture(gl.TEXTURE_2D,tFill); gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,FW,FH,0,gl.RGBA,gl.UNSIGNED_BYTE,fillPix);
+      if(sm){ sx.drawImage(V,0,0,SW,SH); const im=sx.getImageData(0,0,SW,SH).data; let r0=0,g0=0,b0=0,n=0;
+        for(const i of [151,9,108,337,50,280]){ const cx=sm[i].x*SW|0, cy=sm[i].y*SH|0; for(let dy=-2;dy<=2;dy++) for(let dx=-2;dx<=2;dx++){ const k=((cy+dy)*SW+(cx+dx))*4; if(k<0||k>=im.length) continue; r0+=im[k]; g0+=im[k+1]; b0+=im[k+2]; n++; } }
+        if(n){ const t=[r0/n/255,g0/n/255,b0/n/255]; for(let k=0;k<3;k++) skin[k]+=(t[k]-skin[k])*.15; } }
+    }
+  }catch(e){ console.warn(e); }
+  segBusy=false;
+}
+function scalpFrom(w,h){
+  const P=i=>[sm[i].x*w,sm[i].y*h]; const L=P(234), R=P(454), T=P(10), B=P(152);
+  const W=Math.hypot(R[0]-L[0],R[1]-L[1]), H=Math.hypot(B[0]-T[0],B[1]-T[1]);
+  const up=[(T[0]-B[0])/H,(T[1]-B[1])/H], mid=[(L[0]+R[0])/2,(L[1]+R[1])/2];
+  return [mid[0]+up[0]*.16*H, mid[1]+up[1]*.16*H, .6*W, .6*H, Math.atan2(R[1]-L[1],R[0]-L[0])];
+}
+function irisFrom(w,h){
+  if(sm.length<478) return [[0,0,0,0],[0,0,0,0]];
+  return [[468,469,471],[473,474,476]].map(([c,a,b])=>{ const cx=sm[c].x*w, cy=sm[c].y*h, r=Math.hypot((sm[a].x-sm[b].x)*w,(sm[a].y-sm[b].y)*h)/2;
+    const lid=c===468?Math.hypot((sm[159].x-sm[145].x)*w,(sm[159].y-sm[145].y)*h):Math.hypot((sm[386].x-sm[374].x)*w,(sm[386].y-sm[374].y)*h);
+    return [cx,cy,r*1.05,Math.min(1,Math.max(0,(lid/r-.5)/.6))]; });
+}
+function setU(p,w,h){
+  const u=n=>gl.getUniformLocation(p,n);
+  gl.uniform1i(u('uVideo'),0); gl.uniform1i(u('uHair'),1); gl.uniform1i(u('uFill'),2);
+  gl.uniform1f(u('uMirror'),facing==='user'?1:0); gl.uniform2f(u('uRes'),w,h);
+  const hm = raw||!segm||!cur.hair||!sm ? 0 : cur.hair==='buzz' ? 2 : 1;
+  gl.uniform1i(u('uHairMode'),hm);
+  if(Array.isArray(cur.hair)){ gl.uniform3fv(u('uHairCol'),cur.hair); gl.uniform2fv(u('uLift'),cur.lift); }
+  if(hm===2&&scalp){ gl.uniform4f(u('uScalp'),scalp[0],scalp[1],scalp[2],scalp[3]); gl.uniform1f(u('uScalpRot'),scalp[4]); gl.uniform3fv(u('uSkin'),skin); }
+  const ir=(!raw&&cur.iris&&sm)?irises:[[0,0,0,0],[0,0,0,0]];
+  gl.uniform4fv(u('uIris[0]'),ir[0]); gl.uniform4fv(u('uIris[1]'),ir[1]); if(cur.iris) gl.uniform3fv(u('uIrisCol'),cur.iris);
+}
+let paintLift=[0,1], hasPaint=false;
+function applyFilter(f){
+  cur=f; paintStrip(); hasPaint=false;
+  for(const t of [tA,tB,tC]) upCanvas(t,null);
+  if(f.paint){ const p=PAINTS[f.paint](f.flag); upCanvas(tA,p.A); upCanvas(tB,p.B); upCanvas(tC,p.C); paintLift=p.lift||[0,1]; hasPaint=true; }
+  if(f.hair) loadSeg();
+}
+function frame(){
+  requestAnimationFrame(frame);
+  if(V.readyState<2) return;
+  const w=V.videoWidth, h=V.videoHeight; if(C.width!==w||C.height!==h){ C.width=w; C.height=h; }
+  const now=performance.now();
+  if(V.currentTime!==lastT){ lastT=V.currentTime;
+    gl.bindTexture(gl.TEXTURE_2D,tVideo); gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL,false); gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,V);
+    if(faceLM){ try{ const r=faceLM.detectForVideo(V,now); if(r.faceLandmarks.length){ smoothLM(r.faceLandmarks[0]); seen=now; } }catch(e){} }
+    if(cur.hair && segm){ if(cur.hair!=='buzz' || (segN++%2===0)) runSeg(now+.1); }
+    if(sm){ scalp=scalpFrom(w,h); irises=irisFrom(w,h); }
+  }
+  const face=sm && now-seen<400;
+  gl.viewport(0,0,w,h);
+  for(const [i,t] of [[0,tVideo],[1,tHair],[2,tFill]]){ gl.activeTexture(gl.TEXTURE0+i); gl.bindTexture(gl.TEXTURE_2D,t); }
+  gl.useProgram(PF); setU(PF,w,h); gl.uniform1i(gl.getUniformLocation(PF,'uRaw'),raw?1:0);
+  gl.bindVertexArray(vaoF); gl.drawArrays(gl.TRIANGLES,0,3);
+  if(face && hasPaint && !raw){
+    const pos=new Float32Array(468*2); for(let i=0;i<468;i++){ pos[i*2]=sm[i].x; pos[i*2+1]=sm[i].y; }
+    gl.bindBuffer(gl.ARRAY_BUFFER,posBuf); gl.bufferSubData(gl.ARRAY_BUFFER,0,pos);
+    gl.useProgram(PM); setU(PM,w,h);
+    for(const [i,t] of [[3,tA],[4,tB],[5,tC]]){ gl.activeTexture(gl.TEXTURE0+i); gl.bindTexture(gl.TEXTURE_2D,t); }
+    gl.uniform1i(gl.getUniformLocation(PM,'uA'),3); gl.uniform1i(gl.getUniformLocation(PM,'uB'),4); gl.uniform1i(gl.getUniformLocation(PM,'uC'),5);
+    gl.uniform2fv(gl.getUniformLocation(PM,'uALift'),paintLift);
+    gl.bindVertexArray(vaoM); gl.drawElements(gl.TRIANGLES,FACE_TRI.length,gl.UNSIGNED_SHORT,0);
+  }
+  gl.bindVertexArray(null);
+  if(faceLM && !face && !segLoading) pill('Show your face to the camera'); else if(!segLoading && !recOn) pill('');
+}
+
+/* ================= UI ================= */
+function pill(t){ const p=$('pill'); p.textContent=t; p.hidden=!t; p.classList.toggle('rec',t.startsWith('●')); }
+function paintStrip(){ const s=$('strip'); if(!s.children.length){ for(const f of FILTERS){ const b=document.createElement('button'); b.className='fl'; b.dataset.id=f.id;
+      b.innerHTML='<div class="dot"></div><span></span>'; b.querySelector('.dot').textContent=f.e; b.querySelector('span').textContent=f.n; b.onclick=()=>applyFilter(f); s.appendChild(b); } }
+  for(const b of s.children) b.setAttribute('aria-pressed',b.dataset.id===cur.id); }
+async function startCam(){ if(stream) stream.getTracks().forEach(t=>t.stop()); stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:facing,width:{ideal:1280},height:{ideal:720}},audio:false}); V.srcObject=stream; await V.play(); sm=null; }
+$('flipBtn').onclick=async()=>{ facing=facing==='user'?'environment':'user'; try{ await startCam(); }catch(e){} };
+const hold=on=>{ raw=on; };
+$('beforeBtn').addEventListener('pointerdown',()=>hold(true)); for(const ev of ['pointerup','pointerleave','pointercancel']) $('beforeBtn').addEventListener(ev,()=>hold(false));
+C.addEventListener('pointerdown',()=>hold(true)); for(const ev of ['pointerup','pointerleave','pointercancel']) C.addEventListener(ev,()=>hold(false));
+$('goBtn').onclick=async()=>{
+  const st=$('status'); st.className=''; $('goBtn').disabled=true;
+  if(!gl){ st.className='err'; st.textContent='Your browser does not support the 3D graphics this needs. Try Chrome.'; return; }
+  try{ st.textContent='Opening camera…'; await startCam(); }catch(e){ $('goBtn').disabled=false; st.className='err'; st.textContent='Camera blocked. Allow the camera in your browser settings, then try again.'; return; }
+  initGL(); $('start').hidden=true; $('top').hidden=false; $('dock').hidden=false; requestAnimationFrame(frame);
+  pill('Loading face AI…');
+  try{ await loadFace(); pill(''); applyFilter(cur); }catch(e){ pill('Could not load the face AI. Check your internet and reload.'); }
+};
+paintStrip();
+
+/* recording + photo */
+let rec=null, chunks=[], recStart=0, recTimer=null, recOn=false, mic=null; const MAX=15;
+function pickType(){ for(const t of ['video/mp4;codecs=avc1','video/mp4','video/webm;codecs=vp9,opus','video/webm']) if(window.MediaRecorder&&MediaRecorder.isTypeSupported(t)) return t; return ''; }
+async function startRec(){
+  const vs=C.captureStream(30); try{ if(!mic) mic=await navigator.mediaDevices.getUserMedia({audio:true}); mic.getAudioTracks().forEach(t=>vs.addTrack(t)); }catch(e){}
+  const type=pickType(); chunks=[]; rec=new MediaRecorder(vs,type?{mimeType:type,videoBitsPerSecond:6e6}:{});
+  rec.ondataavailable=e=>e.data.size&&chunks.push(e.data);
+  rec.onstop=()=>{ const blob=new Blob(chunks,{type:rec.mimeType||type||'video/webm'}); result(blob,true); };
+  rec.start(250); recStart=performance.now(); recOn=true; $('recBtn').classList.add('on');
+  recTimer=setInterval(()=>{ const s=(performance.now()-recStart)/1000; pill(`● 0:${String(Math.floor(s)).padStart(2,'0')} / 0:${MAX}`); $('recRing').style.strokeDashoffset=264*(1-Math.min(1,s/MAX)); if(s>=MAX) stopRec(); },100);
+}
+function stopRec(){ if(!rec||rec.state==='inactive') return; clearInterval(recTimer); recOn=false; rec.stop(); $('recBtn').classList.remove('on'); $('recRing').style.strokeDashoffset=264; pill(''); }
+$('recBtn').onclick=()=>{ if(recOn) stopRec(); else startRec(); };
+$('photoBtn').onclick=()=>C.toBlob(b=>b&&result(b,false),'image/jpeg',.92);
+function result(blob,isVid){
+  const ext=isVid?(blob.type.includes('mp4')?'mp4':'webm'):'jpg', url=URL.createObjectURL(blob);
+  $('clip').hidden=!isVid; $('shot').hidden=isVid; if(isVid){ $('clip').src=url; $('clip').play().catch(()=>{}); } else $('shot').src=url;
+  $('saveBtn').href=url; $('saveBtn').download=`face-lab.${ext}`;
+  const file=new File([blob],`face-lab.${ext}`,{type:blob.type}); const ok=navigator.canShare&&navigator.canShare({files:[file]});
+  $('shareBtn').hidden=!ok; $('shareBtn').onclick=()=>navigator.share({files:[file]}).catch(()=>{});
+  $('result').hidden=false;
+}
+$('againBtn').onclick=()=>{ $('clip').pause(); $('result').hidden=true; };
+window.__fl={PAINTS,S,applyFilter,FILTERS};
+</script>
+</body>
+</html>
