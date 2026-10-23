@@ -1,0 +1,319 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0b0806">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Spook Cam</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Creepster&family=Outfit:wght@500;700;800&display=swap">
+<style>
+/* Layout: full-screen camera canvas; mask picker + record button in a dark bottom dock; start screen over it. */
+:root{
+  --bg:#0b0806; --ink:#f6efe4; --muted:#b3a593; --orange:#ff7a12; --glow:#ffc94a; --blood:#e0283a; --glass:rgba(16,11,8,.62); --line:rgba(255,255,255,.12);
+  --display:"Creepster","Impact",fantasy; --body:"Outfit",system-ui,-apple-system,"Segoe UI",sans-serif;
+  color-scheme:dark;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-weight:700;overflow:hidden}
+button{font-family:inherit;color:inherit;border:0;background:none;cursor:pointer}
+button:focus-visible{outline:3px solid var(--glow);outline-offset:3px}
+[hidden]{display:none!important}
+#out{position:fixed;inset:0;width:100%;height:100%;object-fit:cover;background:#000}
+video#v{display:none}
+
+/* start */
+#start{position:fixed;inset:0;z-index:5;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;text-align:center;
+  padding:max(24px,env(safe-area-inset-top)) max(20px,env(safe-area-inset-right)) max(24px,env(safe-area-inset-bottom)) max(20px,env(safe-area-inset-left));
+  background:radial-gradient(70% 50% at 50% 40%,#3a1a06 0%,var(--bg) 70%)}
+#start h1{font-family:var(--display);font-weight:400;font-size:clamp(64px,22vw,110px);line-height:.9;margin:0;color:var(--orange);text-shadow:0 0 24px rgba(255,122,18,.6),0 4px 0 #6a2a00}
+#start p{margin:0;color:var(--muted);max-width:30ch;font-size:16px;line-height:1.45}
+.faces{font-size:44px;display:flex;gap:10px}
+.faces span{animation:float 3s ease-in-out infinite}
+.faces span:nth-child(2){animation-delay:.4s}.faces span:nth-child(3){animation-delay:.8s}.faces span:nth-child(4){animation-delay:1.2s}
+@keyframes float{50%{transform:translateY(-10px) rotate(-4deg)}}
+.go{background:var(--orange);color:#1c0a00;font-size:22px;font-weight:800;padding:18px 40px;border-radius:999px;box-shadow:0 0 30px rgba(255,122,18,.5),0 6px 0 #8a3600}
+.go:active{transform:translateY(4px);box-shadow:0 0 30px rgba(255,122,18,.5),0 2px 0 #8a3600}
+#status{min-height:1.3em;color:var(--muted);font-size:14px}
+#status.err{color:#ff7a85}
+
+/* top */
+.top{position:fixed;top:0;left:0;right:0;z-index:3;display:flex;justify-content:space-between;align-items:center;
+  padding:max(12px,env(safe-area-inset-top)) max(14px,env(safe-area-inset-right)) 0 max(14px,env(safe-area-inset-left))}
+.brand{font-family:var(--display);font-size:30px;color:var(--orange);text-shadow:0 2px 10px #000}
+.ic{width:46px;height:46px;border-radius:50%;background:var(--glass);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border:1px solid var(--line);display:grid;place-items:center;font-size:20px}
+.ic[aria-pressed="false"]{opacity:.45}
+.tr{display:flex;gap:8px}
+.rec-time{position:fixed;top:max(70px,calc(env(safe-area-inset-top) + 62px));left:50%;transform:translateX(-50%);z-index:3;background:var(--blood);padding:6px 14px;border-radius:999px;font-size:14px;font-variant-numeric:tabular-nums}
+.hint{position:fixed;left:50%;top:45%;transform:translate(-50%,-50%);z-index:2;background:var(--glass);padding:12px 18px;border-radius:16px;font-size:16px;text-align:center;pointer-events:none}
+
+/* dock */
+.dock{position:fixed;left:0;right:0;bottom:0;z-index:3;padding:18px max(14px,env(safe-area-inset-right)) max(16px,env(safe-area-inset-bottom)) max(14px,env(safe-area-inset-left));
+  background:linear-gradient(transparent,rgba(0,0,0,.75) 40%)}
+.masks{display:flex;justify-content:center;gap:10px;margin-bottom:14px}
+.mk{width:58px;height:58px;border-radius:50%;background:var(--glass);border:2px solid var(--line);font-size:30px;display:grid;place-items:center;transition:transform .15s,border-color .15s}
+.mk[aria-pressed="true"]{border-color:var(--glow);transform:scale(1.12);box-shadow:0 0 16px rgba(255,201,74,.45)}
+.mkname{text-align:center;font-size:13px;color:var(--muted);margin:-6px 0 10px;letter-spacing:.08em;text-transform:uppercase}
+.recrow{display:flex;justify-content:center;align-items:center}
+.recbtn{width:78px;height:78px;border-radius:50%;border:5px solid #fff;display:grid;place-items:center;position:relative}
+.recbtn i{width:58px;height:58px;border-radius:50%;background:var(--blood);transition:all .2s}
+.recbtn.on i{width:28px;height:28px;border-radius:8px}
+.recbtn svg{position:absolute;inset:-5px;transform:rotate(-90deg)}
+.recbtn circle{fill:none;stroke:var(--glow);stroke-width:5;stroke-dasharray:264;stroke-dashoffset:264}
+
+/* result */
+#result{position:fixed;inset:0;z-index:6;background:rgba(0,0,0,.92);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;
+  padding:max(20px,env(safe-area-inset-top)) max(16px,env(safe-area-inset-right)) max(20px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left))}
+#result video{max-width:100%;max-height:62vh;border-radius:18px;background:#000}
+.acts{display:flex;flex-direction:column;gap:10px;width:100%;max-width:340px}
+.btn{padding:15px;border-radius:16px;font-size:17px;font-weight:800;text-align:center;text-decoration:none;display:block}
+.b1{background:var(--orange);color:#1c0a00}
+.b2{background:rgba(255,255,255,.1);color:var(--ink)}
+.small{font-size:13px;color:var(--muted);text-align:center;margin:0;max-width:34ch}
+@media (prefers-reduced-motion:reduce){.faces span{animation:none}}
+</style>
+</head>
+<body>
+<video id="v" playsinline muted autoplay></video>
+<canvas id="out"></canvas>
+
+<section id="start">
+  <div class="faces" aria-hidden="true"><span>🎃</span><span>💀</span><span>👻</span><span>😈</span></div>
+  <h1>SPOOK<br>CAM</h1>
+  <p>Turns your head into a pumpkin, a skull, a ghost or a demon. It talks when you talk and blinks when you blink.</p>
+  <button class="go" id="goBtn">TURN ON CAMERA</button>
+  <p id="status"></p>
+</section>
+
+<div class="top" id="top" hidden>
+  <span class="brand">Spook Cam</span>
+  <div class="tr">
+    <button class="ic" id="fxBtn" aria-pressed="true" aria-label="Spooky effects">🦇</button>
+    <button class="ic" id="flipBtn" aria-label="Flip camera">🔄</button>
+  </div>
+</div>
+<div class="rec-time" id="recTime" hidden>● 0:00</div>
+<div class="hint" id="hint" hidden>Show your face to the camera</div>
+
+<div class="dock" id="dock" hidden>
+  <div class="masks" id="masks"></div>
+  <div class="mkname" id="mkname">Pumpkin</div>
+  <div class="recrow">
+    <button class="recbtn" id="recBtn" aria-label="Record video"><svg viewBox="0 0 88 88"><circle cx="44" cy="44" r="42" id="recRing"/></svg><i></i></button>
+  </div>
+</div>
+
+<section id="result" hidden>
+  <video id="clip" playsinline controls loop></video>
+  <div class="acts">
+    <button class="btn b1" id="shareBtn">Share to TikTok</button>
+    <a class="btn b2" id="saveBtn" download="spook-cam.mp4">Save video</a>
+    <button class="btn b2" id="againBtn">Record again</button>
+  </div>
+  <p class="small" id="resNote">Tip: try the pumpkin trend, where your friend's body dances while the pumpkin is the head.</p>
+</section>
+
+<script type="module">
+const $=id=>document.getElementById(id);
+const V=$('v'), C=$('out'), g=C.getContext('2d');
+const MASKS=[{id:'pumpkin',e:'🎃',n:'Pumpkin'},{id:'skull',e:'💀',n:'Skull'},{id:'ghost',e:'👻',n:'Ghost'},{id:'demon',e:'😈',n:'Demon'}];
+let mask='pumpkin', facing='user', fx=true, stream=null, lm=null, lastT=-1, faces=[], tracks=[], lastSeen=0;
+
+/* ---------- mask art (drawn around the face: W = face width, H = face height, origin = face center) ---------- */
+function flick(t){ return 0.82+0.18*Math.sin(t*13)*Math.sin(t*7.3+1)+0.06*Math.random(); }
+function glowEye(x,y,w,h,blink,col,t,shape){
+  const hh=h*(1-0.85*blink); g.save(); g.shadowColor=col; g.shadowBlur=w*1.2*flick(t); g.fillStyle=col;
+  g.beginPath();
+  if(shape==='tri'){ g.moveTo(x-w/2,y+hh/2); g.lineTo(x+w/2,y+hh/2); g.lineTo(x+w*0.1,y-hh/2); }
+  else g.ellipse(x,y,w/2,Math.max(1,hh/2),0,0,7);
+  g.closePath(); g.fill(); g.restore();
+}
+function drawPumpkin(W,H,jaw,bl,br,t){
+  const rx=W*0.82, ry=H*0.74, cy=-H*0.06;
+  // stem
+  g.fillStyle='#4b5d1f'; g.beginPath(); g.moveTo(-W*.07,cy-ry+H*.04); g.quadraticCurveTo(-W*.05,cy-ry-H*.2,W*.1,cy-ry-H*.22); g.lineTo(W*.12,cy-ry-H*.16); g.quadraticCurveTo(W*.04,cy-ry-H*.1,W*.07,cy-ry+H*.04); g.fill();
+  // body: overlapping lobes
+  const lobes=[[-.55,.62],[.55,.62],[-.3,.78],[.3,.78],[0,.8]];
+  for(const [ox,sw] of lobes){
+    const gr=g.createRadialGradient(W*ox*0.7-W*.15,cy-ry*.35,W*.05,W*ox*0.7,cy,rx*sw*1.2);
+    gr.addColorStop(0,'#ffb347'); gr.addColorStop(.55,'#f2700e'); gr.addColorStop(1,'#9a3a02');
+    g.fillStyle=gr; g.beginPath(); g.ellipse(W*ox*0.62,cy,rx*sw,ry,0,0,7); g.fill();
+    g.strokeStyle='rgba(110,40,0,.45)'; g.lineWidth=W*.012; g.stroke();
+  }
+  // carved face, lit from inside
+  const lit=`rgba(255,${Math.round(190+40*flick(t))},70,1)`;
+  glowEye(-W*.25,cy-H*.12,W*.26,H*.22,bl,lit,t,'tri');
+  glowEye(W*.25,cy-H*.12,W*.26,H*.22,br,lit,t,'tri');
+  g.save(); g.shadowColor=lit; g.shadowBlur=W*.25; g.fillStyle=lit;
+  g.beginPath(); g.moveTo(-W*.06,cy+H*.08); g.lineTo(W*.06,cy+H*.08); g.lineTo(0,cy-H*.02); g.fill();
+  const my=cy+H*.24, mh=H*(0.07+0.42*jaw), mw=W*.62;
+  g.beginPath(); g.moveTo(-mw/2,my-H*.04);
+  const teeth=6; for(let i=0;i<=teeth;i++){ const x=-mw/2+mw*i/teeth; g.lineTo(x,my+(i%2?H*.03:-H*.04)); }
+  g.quadraticCurveTo(mw/2,my+mh,0,my+mh*1.05); g.quadraticCurveTo(-mw/2,my+mh,-mw/2,my-H*.04);
+  g.fill(); g.restore();
+}
+function drawSkull(W,H,jaw,bl,br,t){
+  const cy=-H*.12, bone=g.createRadialGradient(-W*.2,cy-H*.3,W*.05,0,cy,W*.9); bone.addColorStop(0,'#fffaf0'); bone.addColorStop(.7,'#ddd3c0'); bone.addColorStop(1,'#9c917e');
+  const jy=H*(0.06+0.32*jaw);
+  // jaw
+  g.fillStyle=bone; g.beginPath(); g.moveTo(-W*.36,H*.18+jy*.4); g.quadraticCurveTo(-W*.34,H*.62+jy,0,H*.66+jy); g.quadraticCurveTo(W*.34,H*.62+jy,W*.36,H*.18+jy*.4); g.closePath(); g.fill();
+  // lower teeth
+  g.fillStyle='#f4ecdd'; for(let i=-3;i<=3;i++){ g.beginPath(); g.roundRect(W*i*.075-W*.032,H*.3+jy,W*.064,H*.09,W*.015); g.fill(); }
+  g.fillStyle='#000'; g.fillRect(-W*.28,H*.24,W*.56,jy+H*.06);
+  // cranium
+  g.fillStyle=bone; g.beginPath(); g.ellipse(0,cy,W*.66,H*.6,0,0,7); g.fill();
+  g.beginPath(); g.moveTo(-W*.46,cy+H*.2); g.quadraticCurveTo(-W*.4,H*.32,-W*.3,H*.3); g.lineTo(W*.3,H*.3); g.quadraticCurveTo(W*.4,H*.32,W*.46,cy+H*.2); g.fill();
+  // upper teeth
+  g.fillStyle='#f4ecdd'; for(let i=-3;i<=3;i++){ g.beginPath(); g.roundRect(W*i*.075-W*.032,H*.2,W*.064,H*.1,W*.015); g.fill(); }
+  g.strokeStyle='rgba(60,50,40,.5)'; g.lineWidth=W*.008; for(let i=-3;i<=4;i++){ g.beginPath(); g.moveTo(W*(i-.5)*.075,H*.2); g.lineTo(W*(i-.5)*.075,H*.3); g.stroke(); }
+  // sockets + red pupils
+  for(const [sx,b] of [[-1,bl],[1,br]]){
+    g.fillStyle='#120c08'; g.beginPath(); g.ellipse(sx*W*.22,-H*.08,W*.17,H*.15*(1-.5*b)+H*.04,sx*.2,0,7); g.fill();
+    if(b<.6){ g.save(); g.shadowColor='#ff2030'; g.shadowBlur=W*.15*flick(t); g.fillStyle='#ff3040'; g.beginPath(); g.arc(sx*W*.22,-H*.06,W*.035,0,7); g.fill(); g.restore(); }
+  }
+  g.fillStyle='#120c08'; g.beginPath(); g.moveTo(0,H*.02); g.lineTo(-W*.06,H*.14); g.lineTo(W*.06,H*.14); g.fill();
+  g.strokeStyle='rgba(80,60,40,.5)'; g.lineWidth=W*.01; g.beginPath(); g.moveTo(W*.2,cy-H*.52); g.lineTo(W*.25,cy-H*.38); g.lineTo(W*.19,cy-H*.3); g.lineTo(W*.26,cy-H*.2); g.stroke();
+}
+function drawGhost(W,H,jaw,bl,br,t){
+  const top=-H*.9, bot=H*1.6;
+  const gr=g.createLinearGradient(0,top,0,bot); gr.addColorStop(0,'rgba(255,255,255,.97)'); gr.addColorStop(.75,'rgba(235,240,255,.92)'); gr.addColorStop(1,'rgba(220,228,255,0)');
+  g.save(); g.shadowColor='rgba(190,210,255,.8)'; g.shadowBlur=W*.25; g.fillStyle=gr;
+  g.beginPath(); g.moveTo(-W*.62,0); g.bezierCurveTo(-W*.66,top,W*.66,top,W*.62,0);
+  g.bezierCurveTo(W*.74,H*.7,W*.92,H*1.1,W*.95,bot*.85);
+  const waves=5; for(let i=0;i<=waves;i++){ const x=W*.95-1.9*W*i/waves, y=bot*.85+Math.sin(t*3+i)*H*.08+(i%2?H*.12:0); g.lineTo(x,y); }
+  g.bezierCurveTo(-W*.92,H*1.1,-W*.74,H*.7,-W*.62,0); g.fill(); g.restore();
+  g.fillStyle='#14121c';
+  for(const [sx,b] of [[-1,bl],[1,br]]){ g.beginPath(); g.ellipse(sx*W*.2,-H*.1,W*.1,Math.max(H*.012,H*.16*(1-b)),0,0,7); g.fill(); }
+  g.beginPath(); g.ellipse(0,H*.28,W*(.08+.08*jaw),H*(.04+.24*jaw),0,0,7); g.fill();
+}
+function drawDemon(W,H,jaw,bl,br,t){
+  const cy=-H*.04;
+  // horns
+  for(const s of [-1,1]){ const hg=g.createLinearGradient(s*W*.3,cy-H*.5,s*W*.62,cy-H*1.1); hg.addColorStop(0,'#3b0a0a'); hg.addColorStop(1,'#d8c9a8');
+    g.fillStyle=hg; g.beginPath(); g.moveTo(s*W*.22,cy-H*.48); g.quadraticCurveTo(s*W*.62,cy-H*.55,s*W*.6,cy-H*1.12); g.quadraticCurveTo(s*W*.46,cy-H*.72,s*W*.42,cy-H*.36); g.fill(); }
+  const sk=g.createRadialGradient(-W*.15,cy-H*.25,W*.05,0,cy,W*.85); sk.addColorStop(0,'#ff4a3d'); sk.addColorStop(.6,'#b3121c'); sk.addColorStop(1,'#4a0408');
+  g.fillStyle=sk; g.beginPath(); g.moveTo(0,cy-H*.62); g.bezierCurveTo(W*.7,cy-H*.6,W*.62,cy+H*.4,W*.3,cy+H*.6); g.quadraticCurveTo(0,cy+H*.82,-W*.3,cy+H*.6); g.bezierCurveTo(-W*.62,cy+H*.4,-W*.7,cy-H*.6,0,cy-H*.62); g.fill();
+  // brows
+  g.strokeStyle='#2a0204'; g.lineWidth=W*.045; g.lineCap='round';
+  for(const s of [-1,1]){ g.beginPath(); g.moveTo(s*W*.06,-H*.22); g.lineTo(s*W*.36,-H*.32); g.stroke(); }
+  for(const [sx,b] of [[-1,bl],[1,br]]){ glowEye(sx*W*.22,-H*.1,W*.2,H*.11,b,'#ffe14a',t,'oval'); }
+  g.fillStyle='#2a0204'; for(const s of [-1,1]){ g.beginPath(); g.ellipse(s*W*.22,-H*.1,W*.018,H*.045*(1-b0(s,bl,br)),0,0,7); g.fill(); }
+  const my=H*.3, mh=H*(.05+.3*jaw);
+  g.fillStyle='#1a0003'; g.beginPath(); g.ellipse(0,my,W*.24,mh/2+H*.01,0,0,7); g.fill();
+  g.fillStyle='#fff6e6'; for(const s of [-1,1]){ g.beginPath(); g.moveTo(s*W*.15,my-mh/2); g.lineTo(s*W*.09,my-mh/2); g.lineTo(s*W*.12,my-mh/2+H*.11); g.fill(); }
+}
+const b0=(s,bl,br)=>s<0?bl:br;
+const DRAW={pumpkin:drawPumpkin,skull:drawSkull,ghost:drawGhost,demon:drawDemon};
+
+/* ---------- spooky atmosphere ---------- */
+const bats=Array.from({length:5},(_,i)=>({x:Math.random(),y:.1+Math.random()*.35,s:.6+Math.random()*.6,v:.03+Math.random()*.05,p:Math.random()*6}));
+function atmosphere(w,h,t,dt){
+  const vg=g.createRadialGradient(w/2,h*.45,Math.min(w,h)*.3,w/2,h/2,Math.max(w,h)*.75); vg.addColorStop(0,'rgba(0,0,0,0)'); vg.addColorStop(1,'rgba(0,0,0,.75)');
+  g.fillStyle=vg; g.fillRect(0,0,w,h);
+  g.fillStyle=`rgba(255,110,20,${0.05+0.04*Math.sin(t*9)*Math.sin(t*4)})`; g.fillRect(0,0,w,h);
+  for(let i=0;i<4;i++){ const fx=((t*.02*(i+1)+i*.3)%1.4-.2)*w, fy=h*(.82+.05*i); const fg=g.createRadialGradient(fx,fy,0,fx,fy,w*.5); fg.addColorStop(0,'rgba(200,200,215,.18)'); fg.addColorStop(1,'rgba(200,200,215,0)'); g.fillStyle=fg; g.fillRect(0,0,w,h); }
+  g.fillStyle='#0a0606';
+  for(const b of bats){ b.x+=b.v*dt; if(b.x>1.15){ b.x=-.15; b.y=.08+Math.random()*.35; }
+    const x=b.x*w, y=b.y*h+Math.sin(t*2+b.p)*h*.03, s=w*.045*b.s, f=Math.sin(t*16+b.p);
+    g.beginPath(); g.moveTo(x,y); g.quadraticCurveTo(x-s*.6,y-s*(.4+.5*f),x-s*1.2,y+s*.1*f); g.quadraticCurveTo(x-s*.7,y+s*.05,x-s*.5,y+s*.25); g.quadraticCurveTo(x-s*.25,y+s*.1,x,y+s*.25);
+    g.quadraticCurveTo(x+s*.25,y+s*.1,x+s*.5,y+s*.25); g.quadraticCurveTo(x+s*.7,y+s*.05,x+s*1.2,y+s*.1*f); g.quadraticCurveTo(x+s*.6,y-s*(.4+.5*f),x,y); g.fill(); }
+}
+
+/* ---------- face tracking ---------- */
+async function loadModel(){
+  const {FilesetResolver,FaceLandmarker}=await import('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs');
+  const files=await FilesetResolver.forVisionTasks('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm');
+  const o=d=>({baseOptions:{modelAssetPath:'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task',delegate:d},runningMode:'VIDEO',numFaces:3,outputFaceBlendshapes:true});
+  try{ lm=await FaceLandmarker.createFromOptions(files,o('GPU')); }catch(e){ lm=await FaceLandmarker.createFromOptions(files,o('CPU')); }
+}
+async function startCam(){
+  if(stream) stream.getTracks().forEach(t=>t.stop());
+  stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:facing,width:{ideal:1280},height:{ideal:720},frameRate:{ideal:30}},audio:false});
+  V.srcObject=stream; await V.play(); tracks=[];
+}
+function faceFrom(p,bs,w,h){
+  const P=i=>({x:(facing==='user'?1-p[i].x:p[i].x)*w,y:p[i].y*h});
+  const L=P(234), R=P(454), T=P(10), B=P(152), eL=P(33), eR=P(263);
+  const W=Math.hypot(R.x-L.x,R.y-L.y), H=Math.hypot(B.x-T.x,B.y-T.y);
+  let roll=Math.atan2(eR.y-eL.y,eR.x-eL.x); if(facing==='user') roll=Math.atan2(eL.y-eR.y,eL.x-eR.x);
+  const sc={}; if(bs) for(const c of bs.categories) sc[c.categoryName]=c.score;
+  let bl=sc.eyeBlinkLeft||0, br=sc.eyeBlinkRight||0; if(facing!=='user'){ [bl,br]=[br,bl]; }
+  return {x:(L.x+R.x+T.x+B.x)/4, y:(L.y+R.y+T.y+B.y)/4, W, H, roll:Math.abs(roll)>Math.PI/2?roll-Math.sign(roll)*Math.PI:roll, jaw:sc.jawOpen||0, bl, br};
+}
+function smoothTo(list){
+  const next=[];
+  for(const f of list){
+    let best=null, bd=1e9; for(const tr of tracks){ const d=Math.hypot(tr.x-f.x,tr.y-f.y); if(d<bd){bd=d;best=tr;} }
+    if(best && bd<f.W){ const a=.55; for(const k of ['x','y','W','H','roll']) best[k]+=(f[k]-best[k])*a; for(const k of ['jaw','bl','br']) best[k]+=(f[k]-best[k])*.6; next.push(best); tracks=tracks.filter(x=>x!==best); }
+    else next.push({...f});
+  }
+  tracks=next;
+}
+
+/* ---------- main loop ---------- */
+let tPrev=performance.now();
+function frame(){
+  requestAnimationFrame(frame);
+  if(V.readyState<2) return;
+  const w=V.videoWidth, h=V.videoHeight; if(C.width!==w){ C.width=w; C.height=h; }
+  const now=performance.now(), t=now/1000, dt=Math.min(.1,(now-tPrev)/1000); tPrev=now;
+  if(lm && V.currentTime!==lastT){ lastT=V.currentTime;
+    try{ const r=lm.detectForVideo(V,now); if(r.faceLandmarks.length){ lastSeen=now; smoothTo(r.faceLandmarks.map((p,i)=>faceFrom(p,r.faceBlendshapes&&r.faceBlendshapes[i],w,h))); } }catch(e){} }
+  g.save(); if(facing==='user'){ g.translate(w,0); g.scale(-1,1); }
+  g.filter = fx ? 'saturate(.55) contrast(1.15) brightness(.82)' : 'none';
+  g.drawImage(V,0,0,w,h); g.filter='none'; g.restore();
+  const visible = now-lastSeen<500;
+  if(fx) atmosphere(w,h,t,dt);
+  if(visible) for(const f of tracks){ g.save(); g.translate(f.x,f.y); g.rotate(f.roll); DRAW[mask](f.W,f.H,Math.min(1,f.jaw*1.4),f.bl>.45?1:f.bl,f.br>.45?1:f.br,t); g.restore(); }
+  $('hint').hidden = visible || !lm;
+}
+
+/* ---------- recording ---------- */
+let rec=null, chunks=[], recStart=0, recTimer=null, clipBlob=null, micStream=null;
+const MAX=15;
+function pickType(){ for(const t of ['video/mp4;codecs=avc1','video/mp4','video/webm;codecs=vp9,opus','video/webm']) if(window.MediaRecorder&&MediaRecorder.isTypeSupported(t)) return t; return ''; }
+async function startRec(){
+  const vs=C.captureStream(30);
+  try{ if(!micStream) micStream=await navigator.mediaDevices.getUserMedia({audio:true}); micStream.getAudioTracks().forEach(tr=>vs.addTrack(tr)); }catch(e){}
+  const type=pickType(); chunks=[];
+  rec=new MediaRecorder(vs,type?{mimeType:type,videoBitsPerSecond:5e6}:{});
+  rec.ondataavailable=e=>e.data.size&&chunks.push(e.data);
+  rec.onstop=()=>{ clipBlob=new Blob(chunks,{type:rec.mimeType||type||'video/webm'}); showClip(); };
+  rec.start(250); recStart=performance.now();
+  $('recBtn').classList.add('on'); $('recTime').hidden=false;
+  recTimer=setInterval(()=>{ const s=(performance.now()-recStart)/1000; $('recTime').textContent=`● 0:${String(Math.floor(s)).padStart(2,'0')} / 0:${MAX}`;
+    $('recRing').style.strokeDashoffset=264*(1-Math.min(1,s/MAX)); if(s>=MAX) stopRec(); },100);
+}
+function stopRec(){ if(!rec||rec.state==='inactive') return; clearInterval(recTimer); rec.stop(); $('recBtn').classList.remove('on'); $('recTime').hidden=true; $('recRing').style.strokeDashoffset=264; }
+function showClip(){
+  const ext=clipBlob.type.includes('mp4')?'mp4':'webm';
+  const url=URL.createObjectURL(clipBlob); $('clip').src=url; $('saveBtn').href=url; $('saveBtn').download=`spook-cam.${ext}`;
+  const file=new File([clipBlob],`spook-cam.${ext}`,{type:clipBlob.type});
+  const canShare=navigator.canShare&&navigator.canShare({files:[file]});
+  $('shareBtn').hidden=!canShare; $('shareBtn').onclick=()=>navigator.share({files:[file],title:'Spook Cam'}).catch(()=>{});
+  $('result').hidden=false; $('clip').play().catch(()=>{});
+}
+$('recBtn').onclick=()=>{ if(rec&&rec.state==='recording') stopRec(); else startRec(); };
+$('againBtn').onclick=()=>{ $('clip').pause(); $('result').hidden=true; };
+
+/* ---------- controls ---------- */
+function paintMasks(){ const box=$('masks'); box.innerHTML=''; for(const m of MASKS){ const b=document.createElement('button'); b.className='mk'; b.textContent=m.e; b.setAttribute('aria-label',m.n); b.setAttribute('aria-pressed',m.id===mask);
+  b.onclick=()=>{ mask=m.id; $('mkname').textContent=m.n; paintMasks(); }; box.appendChild(b); } }
+paintMasks();
+$('fxBtn').onclick=()=>{ fx=!fx; $('fxBtn').setAttribute('aria-pressed',fx); };
+$('flipBtn').onclick=async()=>{ facing=facing==='user'?'environment':'user'; try{ await startCam(); }catch(e){} };
+$('goBtn').onclick=async()=>{
+  const st=$('status'); st.className=''; $('goBtn').disabled=true;
+  try{ st.textContent='Opening camera…'; await startCam(); }
+  catch(e){ $('goBtn').disabled=false; st.className='err'; st.textContent='Camera blocked. Allow the camera in your browser settings, then try again.'; return; }
+  $('start').hidden=true; $('top').hidden=false; $('dock').hidden=false; requestAnimationFrame(frame);
+  $('hint').hidden=false; $('hint').textContent='Summoning the spirits…';
+  try{ await loadModel(); $('hint').textContent='Show your face to the camera'; }
+  catch(e){ $('hint').textContent='Could not load the face tracker. Check your internet and reload.'; }
+};
+window.__spook={DRAW,g,C}; // used for testing the art
+</script>
+</body>
+</html>
