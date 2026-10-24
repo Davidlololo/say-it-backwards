@@ -294,8 +294,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent2);outlin
   </div>
   <div class="msg info" id="msg"></div>
   <div class="depth" aria-hidden="true"><i id="depthBar" style="height:0%"></i></div>
-  <div class="idle" id="idle" hidden></div>
-  <div class="dock">
+    <div class="dock">
     <div class="dockin gl">
       <div class="read"><b id="read1">—</b><br><span>No-reps <span class="n" id="bad" style="color:var(--bad)">0</span> · <span class="n" id="time">0:00</span> · <span class="n" id="fps">—</span></span></div>
       <button class="dbtn" id="flipBtn">Flip</button>
@@ -353,15 +352,15 @@ function makeCounter(ex) {
       if (st.view !== undefined && st.view !== front && st.phase === 'down') st.phase = 'up';   // switched view mid-rep
       st.view = front;
       if (st.phase === 'up') {
-        if (front ? (s.e < 130 && s.s > 15) : s.e < 130) { st.phase = 'down'; st.start = i; st.minE = s.e; st.minB = s.b; st.minL = s.l; st.maxS = s.s; st.maxW = s.w; st.maxA = s.a; }
+        if (front ? (s.s > 15 && s.e < 165) : s.e < 130) { st.phase = 'down'; st.start = i; st.minE = s.e; st.minB = s.b; st.minL = s.l; st.maxS = s.s; st.maxW = s.w; st.maxA = s.a; }
         return null;
       }
       st.minE = Math.min(st.minE, s.e); st.minB = Math.min(st.minB, s.b); st.minL = Math.min(st.minL, s.l);
       st.maxS = Math.max(st.maxS, s.s); st.maxW = Math.max(st.maxW, s.w); st.maxA = Math.max(st.maxA, s.a);
-      if (front ? (s.e > 150 && s.s < 14) : s.e > 155) {
+      if (front ? (s.s < 12 && s.e > 140) : s.e > 155) {
         st.phase = 'up';
         let why;
-        if (front) why = st.maxW > 25 ? 'hands' : st.maxS < 40 ? 'chest' : st.minE > 100 ? 'low' : st.maxA > 40 ? 'even' : null;
+        if (front) why = st.maxW > 45 ? 'hands' : st.maxS < 25 ? 'chest' : (st.minE > 145 && st.maxS < 35) ? 'low' : st.maxA > 60 ? 'even' : null;
         else why = st.minL < 145 ? 'knees' : st.minB < 145 ? 'body' : st.minE > 95 ? 'low' : null;
         if (!why && (i - st.start < 3 || i - st.lastRep < 6)) why = 'fast';
         if (why) return { t: 'no', why };
@@ -430,16 +429,10 @@ function verifySet(ex, trace, claimed, elapsedMs) {
     }
   }
   if (ex === 'push') {
-    // front view: the elbows bending and the shoulders dropping must happen together.
-    // Moving your arms around while kneeling bends the elbows without the body going down.
-    const E = [], Sd = [];
-    for (let i = 0; i < N; i++) if (trace.f[i] === 1 && trace.v[i] === 1) { E.push(trace.e[i]); Sd.push(trace.s[i]); }
-    if (E.length > N * 0.3) {
-      const r = corr(E, Sd);
-      if (r > -0.45) return { ok: false, reason: 'Your body did not go down with your arms' };
-      let moved = 0; for (let i = 0; i < N; i++) if (trace.f[i] === 1 && trace.v[i] === 1 && trace.w[i] > 25) moved++;
-      if (moved > E.length * 0.25) return { ok: false, reason: 'Hands were not planted on the floor' };
-    }
+    // front view: hands have to stay planted on the floor for most of the set
+    let fr = 0, moved = 0;
+    for (let i = 0; i < N; i++) if (trace.f[i] === 1 && trace.v[i] === 1) { fr++; if (trace.w[i] > 45) moved++; }
+    if (fr > N * 0.3 && moved > fr * 0.4) return { ok: false, reason: 'Hands were not planted on the floor' };
   }
   if (ex === 'plank') {
     let v = 0; for (const x of trace.v) v += x;
@@ -625,7 +618,7 @@ async function startWorkout(e){
   ex=e;
   $('tabs').hidden=true; for(const s of ['train','ranks','me','done']) $(s).hidden=true; $('cam').hidden=false;
   $('of').textContent=EXN[ex].toUpperCase()+(ex==='plank'?' · SEC':''); $('count').textContent='0'; $('bad').textContent='0'; $('time').textContent='0:00';
-  $('prog').style.strokeDashoffset=276.5; $('depthBar').parentElement.hidden=ex==='plank'; $('idle').hidden=true;
+  $('prog').style.strokeDashoffset=276.5; $('depthBar').parentElement.hidden=ex==='plank';
   phase='ready'; setMode('Getting ready'); flash('Loading the AI…','info',0);
   try{ if(!landmarker) await loadModel(); await startCam(); }
   catch(err){ stopCam(); go('train'); toast(err&&err.name==='NotAllowedError'?'Camera blocked. Allow the camera in your browser settings.':'Could not start. Check your internet.'); return; }
@@ -697,13 +690,13 @@ function analysePush(){
     const no=t=>{ cur=off; color='#ff7a1a'; label=''; info(t); return false; };
     if(!both||Math.min(vis(13),vis(14))<0.5) return no('Both arms in the picture');
     const wL=px(S[15]), wR=px(S[16]), sh={x:(S[11].x+S[12].x)/2*C.width, y:(S[11].y+S[12].y)/2*C.height}, wrY=(wL.y+wR.y)/2;
-    if(wrY<=sh.y+shW*0.3) return no('Hands on the floor, under your shoulders');
+    if(wrY<=sh.y+shW*0.15) return no('Hands on the floor, under your shoulders');
     // kneeling or standing up: the hips show up a full torso below the shoulders. In a push-up the body points away
     // from the camera, so the hips are hidden or sit close to the shoulders.
-    if(Math.min(vis(23),vis(24))>0.6){
+    if(Math.min(vis(23),vis(24))>0.75){
       const hip={x:(S[23].x+S[24].x)/2*C.width, y:(S[23].y+S[24].y)/2*C.height};
-      if(hip.y>sh.y && Math.hypot(hip.x-sh.x,hip.y-sh.y)/shW>0.85) return no('Get down into push-up position');
-      if(Math.min(vis(25),vis(26))>0.65 && (S[25].y+S[26].y)/2*C.height>hip.y+shW*0.3) return no('Get down into push-up position');
+      if(hip.y>sh.y && Math.hypot(hip.x-sh.x,hip.y-sh.y)/shW>1.05) return no('Get down into push-up position');
+      if(Math.min(vis(25),vis(26))>0.8 && (S[25].y+S[26].y)/2*C.height>hip.y+shW*0.6) return no('Get down into push-up position');
     }
     const eL=ang(S[11],S[13],S[15]), eR=ang(S[12],S[14],S[16]), elbow=(eL+eR)/2;
     // where the hands are planted is measured while you hold still before the set
@@ -718,10 +711,10 @@ function analysePush(){
     const wMove=Math.max(0,Math.min(180,Math.round(Math.max(Math.hypot(wL.x-A.L.x,wL.y-A.L.y),Math.hypot(wR.x-A.R.x,wR.y-A.R.y))/Math.max(1,A.shW)*100)));
     cur={e:Math.round(elbow),b:180,l:180,v:1,f:1,s:sDrop,w:wMove,a:Math.round(Math.abs(eL-eR))};
     clearInfo();
-    const planted=wMove<=25; color=planted?'#36e08a':'#ff4057'; label=Math.round(elbow)+'°'; setDepth(sDrop/60);
+    const planted=wMove<=45; color=planted?'#36e08a':'#ff4057'; label=Math.round(elbow)+'°'; setDepth(sDrop/60);
     $('read1').textContent=`Front · Elbows ${cur.e}° · Down ${sDrop}% · Hands ${planted?'planted':'moving'}`;
     if(phase==='live' && !planted && !$('msg').textContent) flash('Keep your hands on the floor!','bad',800);
-    return elbow>150 && wMove<12;
+    return elbow>140 && wMove<15;
   }
   setView('Side view',true);
   const q=sideBody();
@@ -779,9 +772,7 @@ function detectLoop(){
     if(phase==='live'){
       sampleTick();
       const secs=Math.floor((performance.now()-setStart)/1000); $('time').textContent=fmt(secs);
-      if(ex!=='plank'){ const idle=(performance.now()-lastRepAt)/1000; const lim=total()?12:25;
-        $('idle').hidden=idle<lim-5; if(!$('idle').hidden) $('idle').textContent=`Set ends in ${Math.max(0,Math.ceil(lim-idle))}s`;
-        if(idle>lim) finishSet(); }
+      // no auto-ending: the set runs until you tap Finish
     }
     const now=performance.now(); if(now-fpsT>1000){ $('fps').textContent=Math.round(fpsN*1000/(now-fpsT))+' fps'; fpsN=0; fpsT=now; }
     detectLoop();
