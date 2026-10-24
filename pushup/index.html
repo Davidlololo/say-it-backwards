@@ -687,13 +687,22 @@ function analysePush(){
   if(frontScore>0.5){
     setView('Front view',true);
     const off={e:180,b:180,l:180,v:0,f:1,s:0,w:0,a:0};
-    const no=t=>{ cur=off; color='#ff7a1a'; label=''; info(t); return false; };
+    const no=t=>{ cur=off; color=t.startsWith('Knees')?'#ff4057':'#ff7a1a'; label=''; if(t.startsWith('Knees')&&phase==='live'&&!$('msg').textContent) flash(t,'bad',900); else info(t); return false; };
     if(Math.min(vis(11),vis(12))<0.5) return no('Show your head and shoulders');
     const sh={x:(S[11].x+S[12].x)/2*C.width, y:(S[11].y+S[12].y)/2*C.height};
     // kneeling or standing up straight: the hips show a full torso below the shoulders
     if(Math.min(vis(23),vis(24))>0.75){
       const hip={x:(S[23].x+S[24].x)/2*C.width, y:(S[23].y+S[24].y)/2*C.height};
       if(hip.y>sh.y && Math.hypot(hip.x-sh.x,hip.y-sh.y)/shW>1.05) return no('Get down into push-up position');
+    }
+    // knees on the floor: the thigh shows as a long line going down from hip to knee.
+    // In a real push-up the legs point away from the camera, so the thighs look short or are hidden.
+    for(const [h,k] of [[23,25],[24,26]]){
+      if(vis(k)>0.55 && vis(h)>0.3){
+        const H=px(S[h]), K=px(S[k]);
+        if(K.y>H.y && Math.hypot(K.x-H.x,K.y-H.y)/shW>0.55){ fa.kneeHits=(fa.kneeHits||0)+1; if(fa.kneeHits>=3) return no('Knees off the floor!'); }
+        else fa.kneeHits=Math.max(0,(fa.kneeHits||0)-1);
+      }
     }
     if(!fa.shW) fa.shW=shW; fa.shW+=(shW-fa.shW)*0.05;
     // the top of the push-up is learned while you move: the highest your shoulders get
